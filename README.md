@@ -93,7 +93,7 @@ Go to your [Slack App settings](https://api.slack.com/apps)
 - Under "Subscribe to bot events", add:
   - `app_mention`
   - `assistant_thread_started`
-  - `message:im`
+  - `message.im`
 
 > Remember to include `/api/events` in the Request URL.
 
