@@ -145,7 +145,7 @@ Make sure to modify the [subscription URL](./README.md/#enable-slack-events) to 
    - Under "Subscribe to bot events", add:
      - `app_mention`
      - `assistant_thread_started`
-     - `message:im`
+     - `message.im`
 
 ## Usage
 
