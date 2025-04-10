@@ -12,8 +12,8 @@ importers:
         specifier: ^1.1.14
         version: 1.1.15(zod@3.24.2)
       '@slack/web-api':
-        specifier: ^7.0.2
-        version: 7.8.0
+        specifier: ^7.9.1
+        version: 7.9.1
       '@vercel/functions':
         specifier: ^2.0.0
         version: 2.0.0
@@ -88,8 +88,8 @@ packages:
     resolution: {integrity: sha512-n0EGm7ENQRxlXbgKSrQZL69grzg1gHLAVd+GlRVQJ1NSORo0FrApR7wql/gaKdu2n4TO83Sq/AmeUOqD60aXUA==}
     engines: {node: '>= 12.13.0', npm: '>= 6.12.0'}
 
-  '@slack/web-api@7.8.0':
-    resolution: {integrity: sha512-d4SdG+6UmGdzWw38a4sN3lF/nTEzsDxhzU13wm10ejOpPehtmRoqBKnPztQUfFiWbNvSb4czkWYJD4kt+5+Fuw==}
+  '@slack/web-api@7.9.1':
+    resolution: {integrity: sha512-qMcb1oWw3Y/KlUIVJhkI8+NcQXq1lNymwf+ewk93ggZsGd6iuz9ObQsOEbvlqlx1J+wd8DmIm3DORGKs0fcKdg==}
     engines: {node: '>= 18', npm: '>= 8.6.0'}
 
   '@types/diff-match-patch@1.0.36':
@@ -125,8 +125,8 @@ packages:
   asynckit@0.4.0:
     resolution: {integrity: sha512-Oei9OH4tRh0YqU3GxhX79dM/mwVgvbZJaSNaRk+bshkj0S5cfHcgYakreBjrHwatXKbz+IoIdYLxrKim2MjW0Q==}
 
-  axios@1.8.1:
-    resolution: {integrity: sha512-NN+fvwH/kV01dYUQ3PTOZns4LWtWhOFCAhQ/pHb88WQ1hNe5V/dvFwc4VJcDL11LT9xSX0QtsR8sWUuyOuOq7g==}
+  axios@1.8.4:
+    resolution: {integrity: sha512-eBSYY4Y68NNlHbHBMdeDmKNtDgXWhQsJcGqzO3iLUM0GraQFSS9cVgPX5I9b3lbdFKyYoAEGAZF1DwhTaljNAw==}
 
   call-bind-apply-helpers@1.0.2:
     resolution: {integrity: sha512-Sp1ablJ0ivDkSzjcaJdxEunN5/XvksFJ2sMBFfq6x0ryhQV/2b/KwFe21cMpmHtPOSij8K99/wSfoEuTObmuMQ==}
@@ -388,13 +388,13 @@ snapshots:
 
   '@slack/types@2.14.0': {}
 
-  '@slack/web-api@7.8.0':
+  '@slack/web-api@7.9.1':
     dependencies:
       '@slack/logger': 4.0.0
       '@slack/types': 2.14.0
       '@types/node': 20.17.22
       '@types/retry': 0.12.0
-      axios: 1.8.1
+      axios: 1.8.4
       eventemitter3: 5.0.1
       form-data: 4.0.2
       is-electron: 2.2.2
@@ -429,7 +429,7 @@ snapshots:
 
   asynckit@0.4.0: {}
 
-  axios@1.8.1:
+  axios@1.8.4:
     dependencies:
       follow-redirects: 1.15.9
       form-data: 4.0.2
