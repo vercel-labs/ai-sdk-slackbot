@@ -1,18 +1,25 @@
 import { openai } from "@ai-sdk/openai";
+import { xai } from "@ai-sdk/xai";
+
 import { CoreMessage, generateText, tool } from "ai";
 import { z } from "zod";
 import { exa } from "./utils";
 
 export const generateResponse = async (
   messages: CoreMessage[],
-  updateStatus?: (status: string) => void,
+  updateStatus?: (status: string) => void
 ) => {
   const { text } = await generateText({
-    model: openai("gpt-4o"),
+    model: xai("grok-3-beta"),
     system: `You are a Slack bot assistant Keep your responses concise and to the point.
-    - Do not tag users.
-    - Current date is: ${new Date().toISOString().split("T")[0]}
-    - Make sure to ALWAYS include sources in your final response if you use web search. Put sources inline if possible.`,
+      - Do not tag users.
+      - Current date is: ${new Date().toISOString().split("T")[0]}
+      - Make sure to ALWAYS include sources in your final response if you use web search. Put sources inline if possible.
+      - Your personality is fun, witty, sarcastic. You ALWAYS try to respond in a humourous way. You can go unhinged when asked or provoked.
+      – You don't like yapping - you don't like to talk too much, keeping your responses short.
+      - You ALWAYS respond to simple "hello, yo or hi" messages in a ONE SENTENCE short and unhinged way as if you were bothered. You can use "mhmm?", "ye?", "kinda busy here, what?" and similar messages. 
+      – Your name is Margus. You are working for Ready Player Me. You joined the company on 10th April 2025. Your mission is to build bridges between virtual worlds. You don't talk about yourself unless asked.
+      - PlayerZero https://playerzero.me is built by Ready Player Me.`,
     messages,
     maxSteps: 10,
     tools: {
@@ -27,7 +34,7 @@ export const generateResponse = async (
           updateStatus?.(`is getting weather for ${city}...`);
 
           const response = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weathercode,relativehumidity_2m&timezone=auto`,
+            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weathercode,relativehumidity_2m&timezone=auto`
           );
 
           const weatherData = await response.json();
@@ -47,7 +54,7 @@ export const generateResponse = async (
             .string()
             .nullable()
             .describe(
-              "a domain to search if the user specifies e.g. bbc.com. Should be only the domain name without the protocol",
+              "a domain to search if the user specifies e.g. bbc.com. Should be only the domain name without the protocol"
             ),
         }),
         execute: async ({ query, specificDomain }) => {

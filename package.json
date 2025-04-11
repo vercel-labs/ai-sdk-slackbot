@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "@ai-sdk/openai": "^1.1.14",
+    "@ai-sdk/xai": "^1.2.11",
     "@slack/web-api": "^7.9.1",
     "@vercel/functions": "^2.0.0",
     "ai": "^4.1.46",
