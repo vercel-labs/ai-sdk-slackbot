@@ -14,19 +14,15 @@ export async function isValidSlackRequest({
 	request: Request;
 	rawBody: string;
 }) {
-	// console.log('Validating Slack request')
 	const timestamp = request.headers.get("X-Slack-Request-Timestamp");
 	const slackSignature = request.headers.get("X-Slack-Signature");
-	// console.log(timestamp, slackSignature)
 
 	if (!timestamp || !slackSignature) {
-		console.log("Missing timestamp or signature");
 		return false;
 	}
 
 	// Prevent replay attacks on the order of 5 minutes
 	if (Math.abs(Date.now() / 1000 - parseInt(timestamp)) > 60 * 5) {
-		console.log("Timestamp out of range");
 		return false;
 	}
 
@@ -81,8 +77,9 @@ export async function getThread(
 	});
 
 	// Ensure we have messages
-
-	if (!messages) throw new Error("No messages found in thread");
+	if (!messages) {
+		throw new Error("No messages found in thread");
+	}
 
 	const result = messages
 		.map((message) => {
@@ -102,7 +99,6 @@ export async function getThread(
 			} as CoreMessage;
 		})
 		.filter((msg): msg is CoreMessage => msg !== null);
-
 	return result;
 }
 

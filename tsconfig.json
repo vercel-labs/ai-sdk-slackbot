@@ -9,5 +9,5 @@
 		"outDir": "./dist"
 	},
 	"exclude": ["node_modules"],
-	"include": ["api"]
+	"include": ["api", "lib"]
 }

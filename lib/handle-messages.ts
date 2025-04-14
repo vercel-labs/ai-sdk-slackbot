@@ -9,8 +9,6 @@ export async function assistantThreadMessage(
 	event: AssistantThreadStartedEvent,
 ) {
 	const { channel_id, thread_ts } = event.assistant_thread;
-	console.log(`Thread started: ${channel_id} ${thread_ts}`);
-	console.log(JSON.stringify(event));
 
 	await client.chat.postMessage({
 		channel: channel_id,
@@ -43,8 +41,9 @@ export async function handleNewAssistantMessage(
 		event.bot_id === botUserId ||
 		event.bot_profile ||
 		!event.thread_ts
-	)
+	) {
 		return;
+	}
 
 	const { thread_ts, channel } = event;
 	const updateStatus = updateStatusUtil(channel, thread_ts);

@@ -21,15 +21,17 @@ export async function POST(request: Request) {
 
 	try {
 		const botUserId = await getBotId();
-
 		const event = payload.event as SlackEvent;
+		const response = new Response("Success", { status: 200 });
 
 		if (event.type === "app_mention") {
 			waitUntil(handleNewAppMention(event, botUserId));
+			return response;
 		}
 
 		if (event.type === "assistant_thread_started") {
 			waitUntil(assistantThreadMessage(event));
+			return response;
 		}
 
 		if (
@@ -43,7 +45,7 @@ export async function POST(request: Request) {
 			waitUntil(handleNewAssistantMessage(event, botUserId));
 		}
 
-		return new Response("Success!", { status: 200 });
+		return response;
 	} catch (error) {
 		console.error("Error generating response", error);
 		return new Response("Error generating response", { status: 500 });
