@@ -2,7 +2,7 @@
 	"redirects": [
 		{
 			"source": "/",
-			"destination": "https://github.com/nicoalbanese/ai-sdk-slackbot"
+			"destination": "https://github.com/dachi023/ai-slackbot"
 		}
 	],
 	"functions": {
