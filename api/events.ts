@@ -10,7 +10,15 @@ import { verifyRequest, getBotId } from "../lib/slack-utils";
 
 export async function POST(request: Request) {
   const rawBody = await request.text();
-  const payload = JSON.parse(rawBody);
+  
+  let payload: any;
+  try {
+    payload = JSON.parse(rawBody);
+  } catch (error) {
+    console.error("Invalid JSON in request body:", error);
+    return new Response("Invalid JSON in request body", { status: 400 });
+  }
+  
   const requestType = payload.type as "url_verification" | "event_callback";
 
   // See https://api.slack.com/events/url_verification
