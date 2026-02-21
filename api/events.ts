@@ -18,6 +18,26 @@ export async function POST(request: Request) {
     return new Response(payload.challenge, { status: 200 });
   }
 
+  // Forward to preview environment if message contains --preview flag
+  const PREVIEW_URL = process.env.PREVIEW_URL;
+  if (PREVIEW_URL && payload.event?.text?.includes("--preview")) {
+    try {
+      await fetch(`${PREVIEW_URL}/api/events`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Slack-Request-Timestamp": request.headers.get("X-Slack-Request-Timestamp") || "",
+          "X-Slack-Signature": request.headers.get("X-Slack-Signature") || "",
+        },
+        body: rawBody,
+      });
+      return new Response("Forwarded to preview", { status: 200 });
+    } catch (error) {
+      console.error("Failed to forward to preview:", error);
+      return new Response("Preview forwarding failed", { status: 502 });
+    }
+  }
+
   await verifyRequest({ requestType, request, rawBody });
 
   try {
