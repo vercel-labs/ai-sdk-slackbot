@@ -38,7 +38,10 @@ export async function POST(request: Request) {
     }
   }
 
-  await verifyRequest({ requestType, request, rawBody });
+  const verifyResponse = await verifyRequest({ requestType, request, rawBody });
+  if (verifyResponse) {
+    return verifyResponse;
+  }
 
   try {
     const botUserId = await getBotId();
