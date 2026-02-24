@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   const PREVIEW_URL = process.env.PREVIEW_URL;
   const requestHost = new URL(request.url).origin;
   const isSelf = PREVIEW_URL && new URL(PREVIEW_URL).origin === requestHost;
-  if (PREVIEW_URL && isSelf && payload.event?.text?.includes("--preview")) {
+  if (PREVIEW_URL && !isSelf && payload.event?.text?.includes("--preview")) {
     try {
       await fetch(`${PREVIEW_URL}/api/events`, {
         method: "POST",
