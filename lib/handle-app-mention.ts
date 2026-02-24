@@ -4,6 +4,7 @@ import { client, getThread, getChannelHistory, findRelevantThreads } from "./sla
 import { generateResponse } from "./generate-response";
 import { classifyRequest } from "./classify-request";
 import { generateRoutingResponse } from "./generate-routing-response";
+import { lookupAccountBySlackChannel, lookupAccountByChannelName } from "./salesforce-lookup";
 
 const updateStatusUtil = async (
   initialStatus: string,
@@ -55,8 +56,63 @@ export async function handleNewAppMention(
     console.log('[handleNewAppMention] Event text:', event.text);
     console.log('[handleNewAppMention] Channel:', channel, 'Thread:', thread_ts);
 
+    // Detect forwarded messages
+    const forwardedAttachment = event.attachments?.find(
+      (a: any) => a.is_msg_unfurl === true
+    );
+    const isForwardedMessage = !!forwardedAttachment;
+    const originalChannelId = forwardedAttachment?.channel_id;
+
+    // Look up Salesforce account info using the relevant channel
+    // For forwarded messages: use the originating customer channel
+    // For direct mentions: use the current channel
+    const lookupChannelId = isForwardedMessage ? originalChannelId : channel;
+    let accountInfo = null;
+    if (lookupChannelId) {
+      if (isForwardedMessage) {
+        console.log('[handleNewAppMention] Forwarded message from channel:', originalChannelId, 'author:', forwardedAttachment.author_name);
+      }
+
+      // Primary: exact channel ID match
+      accountInfo = await lookupAccountBySlackChannel(lookupChannelId);
+      if (accountInfo) {
+        console.log('[handleNewAppMention] Found Salesforce account via channel ID:', {
+          name: accountInfo.NAME,
+          teamId: accountInfo.TEAM_ID_C,
+          segment: accountInfo.SUBSCRIPTION_PLAN_C
+        });
+      } else {
+        // Fallback: look up by channel name
+        console.log('[handleNewAppMention] No account via channel ID, trying name fallback');
+        try {
+          const channelInfoResult = await client.conversations.info({ channel: lookupChannelId });
+          const channelName = channelInfoResult.channel?.name;
+          if (channelName) {
+            accountInfo = await lookupAccountByChannelName(channelName);
+            if (accountInfo) {
+              console.log('[handleNewAppMention] Found account via name fallback:', {
+                name: accountInfo.NAME,
+                teamId: accountInfo.TEAM_ID_C,
+                segment: accountInfo.SUBSCRIPTION_PLAN_C
+              });
+            }
+          }
+        } catch (slackError) {
+          // Non-fatal: bot may not have access to external workspace channels
+          console.error('[handleNewAppMention] Error fetching channel info:', slackError);
+        }
+      }
+    }
+
     let messages;
-    if (thread_ts) {
+    if (isForwardedMessage) {
+      // Use the forwarded message content as the user message
+      const forwardedText = forwardedAttachment.text || forwardedAttachment.fallback || '';
+      const authorInfo = forwardedAttachment.author_name
+        ? `[Forwarded from ${forwardedAttachment.author_name}]: `
+        : '';
+      messages = [{ role: "user" as const, content: `${authorInfo}${forwardedText}` }];
+    } else if (thread_ts) {
       console.log('[handleNewAppMention] Fetching thread messages');
       messages = await getThread(channel, thread_ts, botUserId);
     } else {
@@ -67,39 +123,45 @@ export async function handleNewAppMention(
     }
     console.log('[handleNewAppMention] Messages count:', messages.length);
 
-    // Retrieve channel history for additional context
-    console.log('[handleNewAppMention] Fetching channel history');
-    const channelHistory = await getChannelHistory(channel, botUserId, 100);
-    console.log('[handleNewAppMention] Channel history length:', channelHistory.length);
-
-    // Find relevant threads (only if not already in a thread)
+    // Retrieve channel history and relevant threads
+    // Skip for forwarded messages since the bot may not be in the original channel
+    let channelHistory = '';
     let enrichedContext = '';
-    if (!thread_ts) {
-      console.log('[handleNewAppMention] Finding relevant threads in channel');
-      await updateMessage("is searching channel threads for context...");
 
-      const threadDiscovery = await findRelevantThreads(channel, event.text, botUserId);
-      console.log('[handleNewAppMention] Thread discovery summary:', threadDiscovery.summary);
-
-      if (threadDiscovery.relevantThreads.length > 0) {
-        // Format threads for context
-        enrichedContext = '\n\n## Relevant Thread Context:\n\n' +
-          threadDiscovery.relevantThreads.map(thread => {
-            return `**Thread about:** ${thread.relevanceReason}\n` +
-              `**Root message:** ${thread.rootMessage}\n` +
-              `**Thread replies:**\n${thread.threadMessages.join('\n')}`;
-          }).join('\n\n---\n\n');
-
-        console.log('[handleNewAppMention] Added', threadDiscovery.relevantThreads.length, 'threads to context');
-      }
+    if (isForwardedMessage) {
+      console.log('[handleNewAppMention] Skipping channel history/thread discovery for forwarded message');
     } else {
-      console.log('[handleNewAppMention] Already in a thread, skipping thread discovery');
+      console.log('[handleNewAppMention] Fetching channel history from:', channel);
+      channelHistory = await getChannelHistory(channel, botUserId, 100);
+      console.log('[handleNewAppMention] Channel history length:', channelHistory.length);
+
+      // Find relevant threads (only if not already in a thread)
+      if (!thread_ts) {
+        console.log('[handleNewAppMention] Finding relevant threads in channel');
+        await updateMessage("is searching channel threads for context...");
+
+        const threadDiscovery = await findRelevantThreads(channel, event.text, botUserId);
+        console.log('[handleNewAppMention] Thread discovery summary:', threadDiscovery.summary);
+
+        if (threadDiscovery.relevantThreads.length > 0) {
+          enrichedContext = '\n\n## Relevant Thread Context:\n\n' +
+            threadDiscovery.relevantThreads.map(thread => {
+              return `**Thread about:** ${thread.relevanceReason}\n` +
+                `**Root message:** ${thread.rootMessage}\n` +
+                `**Thread replies:**\n${thread.threadMessages.join('\n')}`;
+            }).join('\n\n---\n\n');
+
+          console.log('[handleNewAppMention] Added', threadDiscovery.relevantThreads.length, 'threads to context');
+        }
+      } else {
+        console.log('[handleNewAppMention] Already in a thread, skipping thread discovery');
+      }
     }
 
     // Classify the request to check if it's in DS scope
     console.log('[handleNewAppMention] Starting classification');
     await updateMessage("is analyzing your request...");
-    const classification = await classifyRequest(messages, enrichedContext);
+    const classification = await classifyRequest(messages, enrichedContext, accountInfo);
 
     console.log(`[handleNewAppMention] Classification result:`, JSON.stringify(classification));
 
@@ -118,12 +180,13 @@ export async function handleNewAppMention(
       // In scope - generate full response
       await updateMessage("is working on your request...");
 
-      // Build Slack thread URL
-      const threadTs = thread_ts ?? event.ts;
-      const slackThreadUrl = `https://slack.com/app_redirect?channel=${channel}&thread_ts=${threadTs}`;
+      // Build Slack thread URL — link to original message for forwarded messages
+      const slackThreadUrl = isForwardedMessage && forwardedAttachment.from_url
+        ? forwardedAttachment.from_url
+        : `https://slack.com/app_redirect?channel=${channel}&thread_ts=${thread_ts ?? event.ts}`;
 
       console.log('[handleNewAppMention] Calling generateResponse');
-      result = await generateResponse(messages, updateMessage, slackThreadUrl, channelHistory, enrichedContext);
+      result = await generateResponse(messages, updateMessage, slackThreadUrl, channelHistory, enrichedContext, accountInfo);
       console.log('[handleNewAppMention] generateResponse returned, result length:', result?.length || 0);
     }
 

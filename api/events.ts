@@ -20,7 +20,9 @@ export async function POST(request: Request) {
 
   // Forward to preview environment if message contains --preview flag
   const PREVIEW_URL = process.env.PREVIEW_URL;
-  if (PREVIEW_URL && payload.event?.text?.includes("--preview")) {
+  const requestHost = new URL(request.url).origin;
+  const isSelf = PREVIEW_URL && new URL(PREVIEW_URL).origin === requestHost;
+  if (PREVIEW_URL && isSelf && payload.event?.text?.includes("--preview")) {
     try {
       await fetch(`${PREVIEW_URL}/api/events`, {
         method: "POST",

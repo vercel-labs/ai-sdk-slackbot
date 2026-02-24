@@ -21,6 +21,7 @@ export const generateResponse = async (
   slackThreadUrl?: string,
   channelHistory?: string,
   enrichedContext?: string,
+  accountInfo?: any,
 ) => {
   console.log('[generateResponse] Starting response generation');
   console.log('[generateResponse] Messages:', JSON.stringify(messages, null, 2));
@@ -123,7 +124,7 @@ IMPORTANT: Before creating a ticket, if any required information (team ID, custo
 
 For CUSTOMER ISSUES that are IN-SCOPE (new or ongoing): After reviewing the customer issue and gathering context, ALWAYS create a DSE ticket automatically by using the createTicket tool. Do not ask for permission - just create it and confirm to the field team member that the ticket has been created. If DSE is already engaged, make sure the ticket summary reflects the current state of work (e.g., "DSE is actively investigating revalidatePath issue, created reproduction, coordinating with CDN/Next.js teams").
 
-For INFORMATIONAL questions about DSE: Do NOT create a ticket. These are field team members asking about DSE capabilities, not customer issues requiring DSE engagement. Simply provide a helpful answer.${enrichedContext ? `\n\n${enrichedContext}` : ''}`;
+For INFORMATIONAL questions about DSE: Do NOT create a ticket. These are field team members asking about DSE capabilities, not customer issues requiring DSE engagement. Simply provide a helpful answer.${enrichedContext ? `\n\n${enrichedContext}` : ''}${accountInfo ? `\n\n## Salesforce Account Context (from Slack channel):\n- Customer Name: ${accountInfo.NAME}\n- Team ID: ${accountInfo.TEAM_ID_C || 'Not available'}\n- Account Segment: ${accountInfo.SUBSCRIPTION_PLAN_C || 'Unknown'}\n- Account ID: ${accountInfo.ID}\n\nThis account information was automatically retrieved from Salesforce based on the Slack channel where the original message was posted. Use this to pre-fill ticket details.` : ''}`;
 
     console.log('[generateResponse] System prompt length:', systemPrompt.length);
     console.log('[generateResponse] Number of messages:', messages.length);
