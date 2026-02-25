@@ -16,7 +16,8 @@
     "@vercel/functions": "^2.0.0",
     "ai": "^6.0.19",
     "exa-js": "^1.4.10",
-    "zod": "^4.3.5"
+    "zod": "^4.3.5",
+    "snowflake-sdk": "^2.3.4"
   },
   "devDependencies": {
     "@types/node": "^20.11.17",
