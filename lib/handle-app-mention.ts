@@ -55,7 +55,7 @@ export async function handleNewAppMention(
     console.log('[handleNewAppMention] Processing mention from user:', event.user);
     console.log('[handleNewAppMention] Event text:', event.text);
     console.log('[handleNewAppMention] Channel:', channel, 'Thread:', thread_ts);
-
+    console.log('[handleNewAppMention] Event:', JSON.stringify(event, null, 2));
     // Detect forwarded messages
     const forwardedAttachment = event.attachments?.find(
       (a: any) => a.is_msg_unfurl === true
