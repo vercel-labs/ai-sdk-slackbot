@@ -5,33 +5,49 @@ import { generateResponse } from "./generate-response";
 import { classifyRequest } from "./classify-request";
 import { generateRoutingResponse } from "./generate-routing-response";
 import { lookupAccountBySlackChannel, lookupAccountByChannelName } from "./salesforce-lookup";
+import { ThinkingStreamManager } from "./thinking-stream-manager";
 
 const updateStatusUtil = async (
   initialStatus: string,
   event: AppMentionEvent,
 ) => {
-  // Post ephemeral status (only visible to user who mentioned bot)
-  await client.chat.postEphemeral({
+  const threadTs = event.thread_ts ?? event.ts;
+
+  // Post initial status as a thread reply (visible to all)
+  const posted = await client.chat.postMessage({
     channel: event.channel,
-    user: event.user,
+    thread_ts: threadTs,
     text: initialStatus || "Processing your request...",
   });
+  const statusMessageTs = posted.ts!;
 
   const updateMessage = async (status: string) => {
-    // Validate that we have text to post
     if (!status || status.trim().length === 0) {
-      console.error("Attempted to post ephemeral message with empty text");
       status = "⚠️ Error: Unable to generate response. Please try again.";
     }
-
-    // Post new ephemeral message (can't update ephemeral messages)
-    await client.chat.postEphemeral({
+    await client.chat.update({
       channel: event.channel,
-      user: event.user,
+      ts: statusMessageTs,
       text: status,
     });
   };
-  return updateMessage;
+
+  const postFinalEphemeral = async (text: string, ticketUrl?: string) => {
+    if (!text || text.trim().length === 0) {
+      text = "⚠️ Error: Unable to generate response. Please try again.";
+    }
+    // Delete the public status message
+    await client.chat.delete({ channel: event.channel, ts: statusMessageTs });
+    // Send the response as an ephemeral — link to ticket if one was created
+    await client.chat.postEphemeral({
+      channel: event.channel,
+      thread_ts: threadTs,
+      user: event.user,
+      text: ticketUrl ? `<${ticketUrl}|View ticket>` : text,
+    });
+  };
+
+  return { updateMessage, postFinalEphemeral };
 };
 
 export async function handleNewAppMention(
@@ -44,12 +60,8 @@ export async function handleNewAppMention(
     return;
   }
 
-  // NOTE: All agent responses are posted as ephemeral messages (only visible to user who @mentioned bot)
-  // This prevents customers from seeing internal routing discussions
-  // DSE ticket creation messages to the ticket channel remain public (not ephemeral)
-
   const { thread_ts, channel } = event;
-  const updateMessage = await updateStatusUtil("is analyzing your request...", event);
+  const { updateMessage, postFinalEphemeral } = await updateStatusUtil("is analyzing your request...", event);
 
   try {
     console.log('[handleNewAppMention] Processing mention from user:', event.user);
@@ -166,6 +178,7 @@ export async function handleNewAppMention(
     console.log(`[handleNewAppMention] Classification result:`, JSON.stringify(classification));
 
     let result: string;
+    let ticketUrl: string | undefined;
 
     if (!classification.isInScope) {
       console.log('[handleNewAppMention] Request is OUT OF SCOPE');
@@ -177,25 +190,41 @@ export async function handleNewAppMention(
       });
     } else {
       console.log('[handleNewAppMention] Request is IN SCOPE - generating response');
-      // In scope - generate full response
-      await updateMessage("is working on your request...");
 
       // Build Slack thread URL — link to original message for forwarded messages
       const slackThreadUrl = isForwardedMessage && forwardedAttachment.from_url
         ? forwardedAttachment.from_url
         : `https://slack.com/app_redirect?channel=${channel}&thread_ts=${thread_ts ?? event.ts}`;
 
-      console.log('[handleNewAppMention] Calling generateResponse');
-      result = await generateResponse(messages, updateMessage, slackThreadUrl, channelHistory, enrichedContext, accountInfo);
-      console.log('[handleNewAppMention] generateResponse returned, result length:', result?.length || 0);
+      const thinkingManager = new ThinkingStreamManager({
+        client,
+        channel,
+        threadTs: thread_ts ?? event.ts,
+        recipientUserId: event.user,
+        recipientTeamId: event.team,
+      });
+
+      await thinkingManager.start();
+      try {
+        console.log('[handleNewAppMention] Calling generateResponse');
+        ({ text: result, ticketUrl } = await generateResponse(
+          messages, updateMessage, slackThreadUrl, channelHistory,
+          enrichedContext, accountInfo, thinkingManager,
+        ));
+        console.log('[handleNewAppMention] generateResponse returned, result length:', result?.length || 0);
+        await thinkingManager.stop();
+      } catch (error) {
+        await thinkingManager.stopWithError(error);
+        throw error;
+      }
     }
 
     console.log('[handleNewAppMention] About to post final result');
-    await updateMessage(result);
+    await postFinalEphemeral(result, ticketUrl);
     console.log('[handleNewAppMention] Successfully completed');
   } catch (error) {
     console.error("Error handling app mention:", error);
-    await updateMessage(
+    await postFinalEphemeral(
       "⚠️ An error occurred while processing your request. Please check the logs or try again."
     );
   }

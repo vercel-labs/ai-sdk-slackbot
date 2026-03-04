@@ -5,6 +5,7 @@ import { client, getThread, getChannelHistory, updateStatusUtil } from "./slack-
 import { generateResponse } from "./generate-response";
 import { classifyRequest } from "./classify-request";
 import { generateRoutingResponse } from "./generate-routing-response";
+import { ThinkingStreamManager } from "./thinking-stream-manager";
 
 export async function assistantThreadMessage(
   event: AssistantThreadStartedEvent,
@@ -76,12 +77,27 @@ export async function handleNewAssistantMessage(
     });
   } else {
     // In scope - generate full response
-    await updateStatus("is working on your request...");
-
-    // Build Slack thread URL
     const slackThreadUrl = `https://slack.com/app_redirect?channel=${channel}&thread_ts=${thread_ts}`;
 
-    result = await generateResponse(messages, updateStatus, slackThreadUrl, channelHistory);
+    const thinkingManager = new ThinkingStreamManager({
+      client,
+      channel,
+      threadTs: thread_ts,
+      recipientUserId: event.user,
+      recipientTeamId: event.team,
+    });
+
+    await thinkingManager.start();
+    try {
+      ({ text: result } = await generateResponse(
+        messages, updateStatus, slackThreadUrl, channelHistory,
+        undefined, undefined, thinkingManager,
+      ));
+      await thinkingManager.stop();
+    } catch (error) {
+      await thinkingManager.stopWithError(error);
+      throw error;
+    }
   }
 
   await client.chat.postMessage({
