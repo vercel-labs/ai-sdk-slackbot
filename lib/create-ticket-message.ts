@@ -53,12 +53,12 @@ export const postTicketCreationMessage = async (details: TicketDetails) => {
     .replace("🟡", ":large_yellow_circle:");
 
   let plainText = `:ticket: *${issueTitle}*\n\n`;
-  plainText += `:bust_in_silhouette: *Customer:* ${customer} (${customerName})\n`;
-  plainText += `:office: *Segment:* ${customerSegment || "Unknown"}\n`;
   const adminLink = teamId && teamId !== "team_unknown"
-    ? ` <https://admin.vercel.com/team/${teamId}|Admin>`
+    ? ` | <https://admin.vercel.com/team/${teamId}|Admin>`
     : "";
-  plainText += `:key: *Team ID:* \`${teamId}\`${adminLink}\n`;
+  const teamIdDisplay = teamId && teamId !== "team_unknown" ? ` | \`${teamId}\`` : "";
+  plainText += `:bust_in_silhouette: *Customer:* ${customerName}${teamIdDisplay}${adminLink}\n`;
+  plainText += `:office: *Segment:* ${customerSegment || "Unknown"}\n`;
   if (slackChannelId || slackInternalChannelId) {
     const parts = [
       slackChannelId ? `<#${slackChannelId}>` : null,
@@ -68,7 +68,7 @@ export const postTicketCreationMessage = async (details: TicketDetails) => {
   }
   plainText += `:file_folder: *Project ID:* \`${projectId || "prj_unknown"}\`\n`;
   if (notionLink) {
-    plainText += `:notebook: *Notion:* ${notionLink}\n`;
+    plainText += `:notebook: *Notion:* <${notionLink}|Notion>\n`;
   }
   plainText += `:fire: *Priority:* ${priorityDisplay}`;
   if (elevatedPriorityContext) {
@@ -76,12 +76,13 @@ export const postTicketCreationMessage = async (details: TicketDetails) => {
   }
   plainText += `\n\n${request}\n`;
   if (slackThreadUrl) {
-    plainText += `\n<${slackThreadUrl}|Slack Thread>`;
     if (issueCategory) {
-      plainText += `  |  AI Classification: ${issueCategory}`;
+      plainText += `\n_<${slackThreadUrl}|Slack Thread>  |  AI Classification: ${issueCategory}_`;
+    } else {
+      plainText += `\n_<${slackThreadUrl}|Slack Thread>_`;
     }
   } else if (issueCategory) {
-    plainText += `\nAI Classification: ${issueCategory}`;
+    plainText += `\n_AI Classification: ${issueCategory}_`;
   }
 
   try {

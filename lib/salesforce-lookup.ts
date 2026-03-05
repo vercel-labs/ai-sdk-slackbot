@@ -1,4 +1,5 @@
 import snowflake, { Connection } from 'snowflake-sdk';
+import { queries } from './queries';
 
 interface SalesforceAccount {
   [key: string]: any; // Salesforce returns all account properties
@@ -60,16 +61,7 @@ export async function lookupAccountByChannelName(channelName: string): Promise<S
 
     const bindPattern = `%${customerName}%`;
 
-    let accountResult = await executeQuery<SalesforceAccount>(connection, `
-      SELECT * FROM DWH_PROD.ANALYTICS.ACCOUNTS WHERE ACCOUNT_NAME ILIKE ? LIMIT 1
-    `, [bindPattern]);
-
-    if (!accountResult || accountResult.length === 0) {
-      console.log('[salesforce-lookup] No match on ACCOUNT_NAME, trying NAME');
-      accountResult = await executeQuery<SalesforceAccount>(connection, `
-        SELECT * FROM DWH_PROD.ANALYTICS.ACCOUNTS WHERE NAME ILIKE ? LIMIT 1
-      `, [bindPattern]);
-    }
+    const accountResult = await executeQuery<SalesforceAccount>(connection, queries.accountByName, [bindPattern]);
 
     if (!accountResult || accountResult.length === 0) {
       console.log('[salesforce-lookup] No account found for channel name:', channelName);
@@ -115,18 +107,7 @@ export async function lookupAccountBySlackChannel(slackChannelId: string): Promi
       });
     });
 
-    // Query Salesforce account by Slack channel ID
-    const accountQuery = `
-      SELECT *
-      FROM DWH_PREP.SALESFORCE.ACCOUNT_SOURCE
-      WHERE SLACK_CHANNEL_ID_C = '${slackChannelId}'
-      AND SUBSCRIPTION_PLAN_C = 'Enterprise'
-      LIMIT 1
-    `;
-
-    console.log('[salesforce-lookup] Executing query:', accountQuery);
-
-    const accountResult = await executeQuery<SalesforceAccount>(connection, accountQuery);
+    const accountResult = await executeQuery<SalesforceAccount>(connection, queries.accountBySlackChannel(slackChannelId));
 
     if (!accountResult || accountResult.length === 0) {
       console.log('[salesforce-lookup] No account found for channel:', slackChannelId);

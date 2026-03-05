@@ -175,8 +175,7 @@ export async function handleNewAppMention(
       try {
         console.log('[handleNewAppMention] Calling generateResponse');
         ({ text: result, ticketUrl } = await generateResponse(
-          messages, undefined, slackThreadUrl, channelHistory,
-          enrichedContext, accountInfo, thinkingManager,
+          messages, undefined, slackThreadUrl, channelHistory, enrichedContext, accountInfo, thinkingManager,
         ));
         console.log('[handleNewAppMention] generateResponse returned, result length:', result?.length || 0);
       } catch (error) {
