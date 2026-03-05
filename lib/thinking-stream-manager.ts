@@ -137,7 +137,7 @@ export class ThinkingStreamManager {
     this.currentToolInput = null;
   }
 
-  async stop(): Promise<void> {
+  async stop(finalText?: string): Promise<void> {
     if (!this.streamTs || this.disabled) return;
     this.disabled = true;
 
@@ -170,6 +170,7 @@ export class ThinkingStreamManager {
         channel: this.channel,
         ts: this.streamTs,
         chunks,
+        ...(finalText ? { markdown_text: finalText } : {}),
       });
     } catch (error) {
       console.error("[ThinkingStreamManager] Failed to stop:", error);

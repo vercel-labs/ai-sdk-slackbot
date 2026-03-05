@@ -69,14 +69,20 @@ export async function handleNewAssistantMessage(
   let result: string;
 
   if (!classification.isInScope) {
-    // Out of scope - provide routing guidance
+    // Out of scope - provide routing guidance as ephemeral
     result = generateRoutingResponse({
       category: classification.category,
       suggestedTeam: classification.suggestedTeam,
       reasoning: classification.reasoning,
     });
+    await client.chat.postEphemeral({
+      channel: channel,
+      thread_ts: thread_ts,
+      user: event.user,
+      text: result,
+    });
   } else {
-    // In scope - generate full response
+    // In scope - stream handles progress; final answer is embedded via stopStream
     const slackThreadUrl = `https://slack.com/app_redirect?channel=${channel}&thread_ts=${thread_ts}`;
 
     const thinkingManager = new ThinkingStreamManager({
@@ -90,31 +96,15 @@ export async function handleNewAssistantMessage(
     await thinkingManager.start();
     try {
       ({ text: result } = await generateResponse(
-        messages, updateStatus, slackThreadUrl, channelHistory,
+        messages, undefined, slackThreadUrl, channelHistory,
         undefined, undefined, thinkingManager,
       ));
-      await thinkingManager.stop();
+      await thinkingManager.stop(result);
     } catch (error) {
       await thinkingManager.stopWithError(error);
       throw error;
     }
   }
-
-  await client.chat.postMessage({
-    channel: channel,
-    thread_ts: thread_ts,
-    text: result,
-    unfurl_links: false,
-    blocks: [
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: result,
-        },
-      },
-    ],
-  });
 
   await updateStatus("");
 }
