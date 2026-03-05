@@ -33,6 +33,9 @@ importers:
       '@types/node':
         specifier: ^20.11.17
         version: 20.17.22
+      '@types/snowflake-sdk':
+        specifier: ^1.6.24
+        version: 1.6.24
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
@@ -583,6 +586,9 @@ packages:
 
   '@types/retry@0.12.0':
     resolution: {integrity: sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==}
+
+  '@types/snowflake-sdk@1.6.24':
+    resolution: {integrity: sha512-CgRp971LQJr970YSySCeIoNfX/29s9ZUnwhVjl8uL62kC7UoTNdNRwwyGCQ7Ca/fECRu8nK47pZpw8xmVWDn9Q==}
 
   '@types/tough-cookie@4.0.5':
     resolution: {integrity: sha512-/Ad8+nIOV7Rl++6f1BdKxFSMgmoqEoYbHRpPcx3JEfv8VRsQe9Z4mCXeJBzxs7mbHY/XOZZuXlRNfhpVPbs6ZA==}
@@ -2513,6 +2519,11 @@ snapshots:
       form-data: 2.5.5
 
   '@types/retry@0.12.0': {}
+
+  '@types/snowflake-sdk@1.6.24':
+    dependencies:
+      '@types/node': 20.17.22
+      generic-pool: 3.9.0
 
   '@types/tough-cookie@4.0.5': {}
 

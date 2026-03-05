@@ -59,22 +59,24 @@ export async function lookupAccountByChannelName(channelName: string): Promise<S
     });
 
     const bindPattern = `%${customerName}%`;
-    const accountQuery = `
-      SELECT *
-      FROM DWH_PREP.SALESFORCE.ACCOUNT_SOURCE
-      WHERE NAME ILIKE ?
-      AND SUBSCRIPTION_PLAN_C = 'Enterprise'
-      LIMIT 1
-    `;
 
-    const accountResult = await executeQuery<SalesforceAccount>(connection, accountQuery, [bindPattern]);
+    let accountResult = await executeQuery<SalesforceAccount>(connection, `
+      SELECT * FROM DWH_PROD.ANALYTICS.ACCOUNTS WHERE ACCOUNT_NAME ILIKE ? LIMIT 1
+    `, [bindPattern]);
+
+    if (!accountResult || accountResult.length === 0) {
+      console.log('[salesforce-lookup] No match on ACCOUNT_NAME, trying NAME');
+      accountResult = await executeQuery<SalesforceAccount>(connection, `
+        SELECT * FROM DWH_PROD.ANALYTICS.ACCOUNTS WHERE NAME ILIKE ? LIMIT 1
+      `, [bindPattern]);
+    }
 
     if (!accountResult || accountResult.length === 0) {
       console.log('[salesforce-lookup] No account found for channel name:', channelName);
       return null;
     }
 
-    console.log('[salesforce-lookup] Found account via name fallback:', accountResult[0]?.NAME || accountResult[0]?.ID);
+    console.log('[salesforce-lookup] Found account via name fallback:', accountResult[0]?.ACCOUNT_NAME || accountResult[0]?.NAME || accountResult[0]?.ID);
     return accountResult[0];
 
   } catch (error) {

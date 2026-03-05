@@ -90,6 +90,12 @@ export class ThinkingStreamManager {
     }
   }
 
+  updateTitle(title: string): void {
+    this.currentTitle = title;
+    this.updateNeeded = true;
+    this.scheduleUpdate();
+  }
+
   addToolStart(toolName: string, input: unknown): void {
     this.currentToolName = toolName;
     this.currentToolInput = input;

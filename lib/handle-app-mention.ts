@@ -7,49 +7,6 @@ import { generateRoutingResponse } from "./generate-routing-response";
 import { lookupAccountBySlackChannel, lookupAccountByChannelName } from "./salesforce-lookup";
 import { ThinkingStreamManager } from "./thinking-stream-manager";
 
-const updateStatusUtil = async (
-  initialStatus: string,
-  event: AppMentionEvent,
-) => {
-  const threadTs = event.thread_ts ?? event.ts;
-
-  // Post initial status as a thread reply (visible to all)
-  const posted = await client.chat.postMessage({
-    channel: event.channel,
-    thread_ts: threadTs,
-    text: initialStatus || "Processing your request...",
-  });
-  const statusMessageTs = posted.ts!;
-
-  const updateMessage = async (status: string) => {
-    if (!status || status.trim().length === 0) {
-      status = "⚠️ Error: Unable to generate response. Please try again.";
-    }
-    await client.chat.update({
-      channel: event.channel,
-      ts: statusMessageTs,
-      text: status,
-    });
-  };
-
-  const postFinalEphemeral = async (text: string, ticketUrl?: string) => {
-    if (!text || text.trim().length === 0) {
-      text = "⚠️ Error: Unable to generate response. Please try again.";
-    }
-    // Delete the public status message
-    await client.chat.delete({ channel: event.channel, ts: statusMessageTs });
-    // Send the response as an ephemeral — link to ticket if one was created
-    await client.chat.postEphemeral({
-      channel: event.channel,
-      thread_ts: threadTs,
-      user: event.user,
-      text: ticketUrl ? `<${ticketUrl}|View ticket>` : text,
-    });
-  };
-
-  return { updateMessage, postFinalEphemeral };
-};
-
 export async function handleNewAppMention(
   event: AppMentionEvent,
   botUserId: string,
@@ -61,7 +18,26 @@ export async function handleNewAppMention(
   }
 
   const { thread_ts, channel } = event;
-  const { updateMessage, postFinalEphemeral } = await updateStatusUtil("is analyzing your request...", event);
+  const threadTs = thread_ts ?? event.ts;
+
+  const thinkingManager = new ThinkingStreamManager({
+    client,
+    channel,
+    threadTs,
+    recipientUserId: event.user,
+    recipientTeamId: event.team,
+  });
+  await thinkingManager.start();
+
+  const postFinalEphemeral = async (text: string, ticketUrl?: string) => {
+    await thinkingManager.stop();
+    await client.chat.postEphemeral({
+      channel: event.channel,
+      thread_ts: threadTs,
+      user: event.user,
+      text: ticketUrl ? `<${ticketUrl}|View ticket>` : (text || "⚠️ Error: Unable to generate response. Please try again."),
+    });
+  };
 
   try {
     console.log('[handleNewAppMention] Processing mention from user:', event.user);
@@ -150,7 +126,7 @@ export async function handleNewAppMention(
       // Find relevant threads (only if not already in a thread)
       if (!thread_ts) {
         console.log('[handleNewAppMention] Finding relevant threads in channel');
-        await updateMessage("is searching channel threads for context...");
+        thinkingManager.updateTitle("searching channel threads for context...");
 
         const threadDiscovery = await findRelevantThreads(channel, event.text, botUserId);
         console.log('[handleNewAppMention] Thread discovery summary:', threadDiscovery.summary);
@@ -172,7 +148,7 @@ export async function handleNewAppMention(
 
     // Classify the request to check if it's in DS scope
     console.log('[handleNewAppMention] Starting classification');
-    await updateMessage("is analyzing your request...");
+    thinkingManager.updateTitle("analyzing your request...");
     const classification = await classifyRequest(messages, enrichedContext, accountInfo);
 
     console.log(`[handleNewAppMention] Classification result:`, JSON.stringify(classification));
@@ -196,15 +172,6 @@ export async function handleNewAppMention(
         ? forwardedAttachment.from_url
         : `https://slack.com/app_redirect?channel=${channel}&thread_ts=${thread_ts ?? event.ts}`;
 
-      const thinkingManager = new ThinkingStreamManager({
-        client,
-        channel,
-        threadTs: thread_ts ?? event.ts,
-        recipientUserId: event.user,
-        recipientTeamId: event.team,
-      });
-
-      await thinkingManager.start();
       try {
         console.log('[handleNewAppMention] Calling generateResponse');
         ({ text: result, ticketUrl } = await generateResponse(
@@ -212,7 +179,6 @@ export async function handleNewAppMention(
           enrichedContext, accountInfo, thinkingManager,
         ));
         console.log('[handleNewAppMention] generateResponse returned, result length:', result?.length || 0);
-        await thinkingManager.stop();
       } catch (error) {
         await thinkingManager.stopWithError(error);
         throw error;
