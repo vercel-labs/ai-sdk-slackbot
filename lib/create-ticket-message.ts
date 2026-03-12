@@ -93,6 +93,8 @@ export const postTicketCreationMessage = async (details: TicketDetails) => {
       channel: ticketChannelId,
       text: plainText,
       mrkdwn: true,
+      unfurl_links: false,
+      unfurl_media: false,
     });
 
     return {
