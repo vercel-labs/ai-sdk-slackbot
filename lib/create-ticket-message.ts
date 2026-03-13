@@ -13,10 +13,13 @@ interface TicketDetails {
   slackInternalChannelName?: string; // Internal Slack channel name
   priority?: string; // e.g., "SEV 1/Urgent", "SEV 2/High", "SEV 3/Non-Urgent"
   elevatedPriorityContext?: string; // Context if priority is elevated
+  ae?: string; // AE Slack user ID (OWNER_NAME resolved) or display name fallback
+  csm?: string; // CSM Slack user ID (CUSTOMER_SUCCESS_MANAGER_NAME resolved) or display name fallback
   request: string; // The main request/issue description
   slackThreadUrl?: string; // Link back to Slack thread
   issueCategory?: string; // For internal tracking
   issueTitle: string; // Concise title for the ticket
+  requestingUserId?: string; // Slack user ID of the person who submitted the request
 }
 
 export const postTicketCreationMessage = async (details: TicketDetails) => {
@@ -41,10 +44,13 @@ export const postTicketCreationMessage = async (details: TicketDetails) => {
     slackInternalChannelName,
     priority,
     elevatedPriorityContext,
+    ae,
+    csm,
     request,
     slackThreadUrl,
     issueCategory,
     issueTitle,
+    requestingUserId,
   } = details;
 
   const priorityDisplay = (priority || "🟡 SEV 3/Non-Urgent")
@@ -52,47 +58,67 @@ export const postTicketCreationMessage = async (details: TicketDetails) => {
     .replace("🟠", ":large_orange_circle:")
     .replace("🟡", ":large_yellow_circle:");
 
-  let plainText = `:ticket: *${issueTitle}*\n\n`;
-  const adminLink = teamId && teamId !== "team_unknown"
-    ? ` | <https://admin.vercel.com/team/${teamId}|Admin>`
-    : "";
-  const teamIdDisplay = teamId && teamId !== "team_unknown" ? ` | \`${teamId}\`` : "";
-  plainText += `:bust_in_silhouette: *Customer:* ${customerName}${teamIdDisplay}${adminLink}\n`;
-  plainText += `:office: *Segment:* ${customerSegment || "Unknown"}\n`;
-  if (slackChannelId || slackInternalChannelId) {
-    const parts = [
-      slackChannelId ? `<#${slackChannelId}>` : null,
-      slackInternalChannelId ? `<#${slackInternalChannelId}>` : null,
-    ].filter(Boolean);
-    plainText += `:slack: *Channels:* ${parts.join("  |  ")}\n`;
-  }
-  plainText += `:file_folder: *Project ID:* \`${projectId || "prj_unknown"}\`\n`;
-  if (notionLink) {
-    plainText += `:notebook: *Notion:* <${notionLink}|Notion>\n`;
-  }
-  plainText += `:fire: *Priority:* ${priorityDisplay}`;
-  if (elevatedPriorityContext) {
-    plainText += ` — ${elevatedPriorityContext}`;
-  }
-  plainText += `\n\n${request}\n`;
+  const teamIdText = teamId && teamId !== "team_unknown"
+    ? `\`${teamId}\` | <https://admin.vercel.com/team/${teamId}|Admin>`
+    : "Unknown";
+
+  const channelParts = [
+    slackInternalChannelId ? `<#${slackInternalChannelId}>` : null,
+    slackChannelId ? `<#${slackChannelId}>` : null,
+  ].filter(Boolean);
+  const channelsText = channelParts.length ? channelParts.join(" | ") : "—";
+
+  const formatPerson = (val?: string) =>
+    val ? (/^U[A-Z0-9]+$/.test(val) ? `<@${val}>` : val) : "Unknown";
+
+  const fields: any[] = [
+    { type: "mrkdwn", text: `*Team ID*\n${teamIdText}` },
+    { type: "mrkdwn", text: `*Customer*\n${customerName}` },
+    { type: "mrkdwn", text: `*Segment*\n${customerSegment || "Unknown"}` },
+    { type: "mrkdwn", text: `*AE/CSM*\n${formatPerson(ae)} / ${formatPerson(csm)}` },
+    { type: "mrkdwn", text: `*Priority*\n${priorityDisplay}${elevatedPriorityContext ? ` — ${elevatedPriorityContext}` : ""}` },
+    { type: "mrkdwn", text: `*Channels*\n${channelsText}` },
+  ];
+
+  let footerText = '';
   if (slackThreadUrl) {
-    if (issueCategory) {
-      plainText += `\n_<${slackThreadUrl}|Slack Thread>  |  AI Classification: ${issueCategory}_`;
-    } else {
-      plainText += `\n_<${slackThreadUrl}|Slack Thread>_`;
-    }
+    footerText = issueCategory
+      ? `_<${slackThreadUrl}|Slack Thread>  |  AI Classification: ${issueCategory}_`
+      : `_<${slackThreadUrl}|Slack Thread>_`;
   } else if (issueCategory) {
-    plainText += `\n_AI Classification: ${issueCategory}_`;
+    footerText = `_AI Classification: ${issueCategory}_`;
+  }
+
+  const blocks: any[] = [];
+
+  if (requestingUserId) {
+    blocks.push({
+      type: "context",
+      elements: [{ type: "mrkdwn", text: `_Request Form Submission from <@${requestingUserId}>_` }],
+    });
+  }
+
+  blocks.push(
+    {
+      type: "section",
+      text: { type: "mrkdwn", text: `:ticket: *${issueTitle}*\n${request}` },
+    },
+    { type: "divider" },
+    { type: "section", fields },
+  );
+
+  if (footerText) {
+    blocks.push({
+      type: "context",
+      elements: [{ type: "mrkdwn", text: footerText }],
+    });
   }
 
   try {
-    // HYPOTHESIS TEST: Send without blocks to preserve formatting
-    // When blocks are present, text becomes a fallback for notifications
-    // Without blocks, text should be treated as main content (like user messages)
     const result = await client.chat.postMessage({
       channel: ticketChannelId,
-      text: plainText,
-      mrkdwn: true,
+      text: `${issueTitle}${requestingUserId ? ` (from <@${requestingUserId}>)` : ''}`,
+      blocks,
       unfurl_links: false,
       unfurl_media: false,
     });

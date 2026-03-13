@@ -402,3 +402,27 @@ export async function findRelevantThreads(
     return { relevantThreads: [], summary: 'Thread discovery failed, continuing without thread context' };
   }
 }
+
+/**
+ * Resolve a full name (e.g. from Snowflake OWNER_NAME) to a Slack user ID.
+ * Paginates through users.list and matches on real_name (case-insensitive).
+ * Returns null if no match found or on error.
+ */
+export async function lookupSlackUserIdByName(name: string): Promise<string | null> {
+  try {
+    const normalized = name.trim().toLowerCase();
+    let cursor: string | undefined;
+    do {
+      const result = await client.users.list({ limit: 200, cursor });
+      const match = result.members?.find(
+        (m) => m.real_name?.toLowerCase() === normalized
+      );
+      if (match?.id) return match.id;
+      cursor = result.response_metadata?.next_cursor || undefined;
+    } while (cursor);
+    return null;
+  } catch (error) {
+    console.error('[lookupSlackUserIdByName] Error:', error);
+    return null;
+  }
+}

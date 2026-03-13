@@ -2,6 +2,7 @@ import { ModelMessage, generateText, tool, stepCountIs } from "ai";
 import { createGateway } from "@ai-sdk/gateway";
 import { z } from "zod";
 import { postTicketCreationMessage } from "./create-ticket-message";
+import { lookupSlackUserIdByName } from "./slack-utils";
 import type { ThinkingStreamManager } from "./thinking-stream-manager";
 
 // Initialize gateway - when deployed to Vercel, OIDC is used automatically
@@ -24,6 +25,7 @@ export const generateResponse = async (
   enrichedContext?: string,
   accountInfo?: any,
   thinkingManager?: ThinkingStreamManager,
+  requestingUserId?: string,
 ) => {
   console.log('[generateResponse] Starting response generation');
   console.log('[generateResponse] Messages:', JSON.stringify(messages, null, 2));
@@ -253,6 +255,11 @@ For INFORMATIONAL questions about DSE: Do NOT create a ticket. These are field t
 
           const requestWithThread = issueSummary;
 
+          const [aeSlackId, csmSlackId] = await Promise.all([
+            accountInfo?.OWNER_NAME ? lookupSlackUserIdByName(accountInfo.OWNER_NAME) : Promise.resolve(null),
+            accountInfo?.CUSTOMER_SUCCESS_MANAGER_NAME ? lookupSlackUserIdByName(accountInfo.CUSTOMER_SUCCESS_MANAGER_NAME) : Promise.resolve(null),
+          ]);
+
           try {
             const result = await postTicketCreationMessage({
               customer,
@@ -267,10 +274,13 @@ For INFORMATIONAL questions about DSE: Do NOT create a ticket. These are field t
               slackInternalChannelName,
               priority,
               elevatedPriorityContext,
+              ae: aeSlackId ?? accountInfo?.OWNER_NAME,
+              csm: csmSlackId ?? accountInfo?.CUSTOMER_SUCCESS_MANAGER_NAME,
               request: requestWithThread,
               slackThreadUrl,
               issueCategory,
               issueTitle,
+              requestingUserId,
             });
 
             ticketUrl = `https://slack.com/app_redirect?channel=${result.channelId}&thread_ts=${result.messageTs}`;
