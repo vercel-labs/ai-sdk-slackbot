@@ -178,6 +178,10 @@ export class ThinkingStreamManager {
         chunks,
         ...(finalText ? { markdown_text: finalText } : {}),
       });
+      await this.client.chat.delete({
+        channel: this.channel,
+        ts: this.streamTs,
+      });
     } catch (error) {
       console.error("[ThinkingStreamManager] Failed to stop:", error);
     }
@@ -236,6 +240,10 @@ export class ThinkingStreamManager {
         channel: this.channel,
         ts: this.streamTs,
         chunks,
+      });
+      await this.client.chat.delete({
+        channel: this.channel,
+        ts: this.streamTs,
       });
     } catch (stopError) {
       console.error(

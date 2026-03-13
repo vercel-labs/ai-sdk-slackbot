@@ -100,6 +100,12 @@ export async function handleNewAssistantMessage(
         undefined, undefined, thinkingManager,
       ));
       await thinkingManager.stop(result);
+      await client.chat.postEphemeral({
+        channel,
+        thread_ts,
+        user: event.user,
+        text: result,
+      });
     } catch (error) {
       await thinkingManager.stopWithError(error);
       throw error;
