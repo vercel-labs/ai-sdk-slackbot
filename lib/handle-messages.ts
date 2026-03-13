@@ -97,7 +97,7 @@ export async function handleNewAssistantMessage(
     try {
       ({ text: result } = await generateResponse(
         messages, undefined, slackThreadUrl, channelHistory,
-        undefined, undefined, thinkingManager,
+        undefined, undefined, thinkingManager, event.user,
       ));
       await thinkingManager.stop(result);
       await client.chat.postEphemeral({
