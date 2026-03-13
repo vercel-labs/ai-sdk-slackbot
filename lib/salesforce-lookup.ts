@@ -107,7 +107,7 @@ export async function lookupAccountBySlackChannel(slackChannelId: string): Promi
       });
     });
 
-    const accountResult = await executeQuery<SalesforceAccount>(connection, queries.accountBySlackChannel(slackChannelId));
+    const accountResult = await executeQuery<SalesforceAccount>(connection, queries.accountBySlackChannel, [slackChannelId]);
 
     if (!accountResult || accountResult.length === 0) {
       console.log('[salesforce-lookup] No account found for channel:', slackChannelId);

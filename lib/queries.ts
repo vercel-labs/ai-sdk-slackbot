@@ -5,9 +5,9 @@ export const queries = {
     LIMIT 1
   `,
 
-accountBySlackChannel: (slackChannelId: string) => `
+accountBySlackChannel: `
     SELECT * FROM DWH_PROD.ANALYTICS.ACCOUNTS
-    WHERE SLACK_CHANNEL_ID = '${slackChannelId}'
+    WHERE SLACK_CHANNEL_ID = ?
     LIMIT 1
   `,
 };
