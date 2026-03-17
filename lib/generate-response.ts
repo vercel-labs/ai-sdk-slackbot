@@ -2,6 +2,8 @@ import { ModelMessage, generateText, tool, stepCountIs } from "ai";
 import { createGateway } from "@ai-sdk/gateway";
 import { z } from "zod";
 import { postTicketCreationMessage } from "./create-ticket-message";
+import { lookupSlackUserIdByName } from "./slack-utils";
+import type { ThinkingStreamManager } from "./thinking-stream-manager";
 
 // Initialize gateway - when deployed to Vercel, OIDC is used automatically
 // IMPORTANT: Don't pass apiKey property at all to enable OIDC on Vercel
@@ -21,6 +23,9 @@ export const generateResponse = async (
   slackThreadUrl?: string,
   channelHistory?: string,
   enrichedContext?: string,
+  accountInfo?: any,
+  thinkingManager?: ThinkingStreamManager,
+  requestingUserId?: string,
 ) => {
   console.log('[generateResponse] Starting response generation');
   console.log('[generateResponse] Messages:', JSON.stringify(messages, null, 2));
@@ -123,11 +128,13 @@ IMPORTANT: Before creating a ticket, if any required information (team ID, custo
 
 For CUSTOMER ISSUES that are IN-SCOPE (new or ongoing): After reviewing the customer issue and gathering context, ALWAYS create a DSE ticket automatically by using the createTicket tool. Do not ask for permission - just create it and confirm to the field team member that the ticket has been created. If DSE is already engaged, make sure the ticket summary reflects the current state of work (e.g., "DSE is actively investigating revalidatePath issue, created reproduction, coordinating with CDN/Next.js teams").
 
-For INFORMATIONAL questions about DSE: Do NOT create a ticket. These are field team members asking about DSE capabilities, not customer issues requiring DSE engagement. Simply provide a helpful answer.${enrichedContext ? `\n\n${enrichedContext}` : ''}`;
+For INFORMATIONAL questions about DSE: Do NOT create a ticket. These are field team members asking about DSE capabilities, not customer issues requiring DSE engagement. Simply provide a helpful answer.${enrichedContext ? `\n\n${enrichedContext}` : ''}${accountInfo ? `\n\n## Account Context (from Slack channel lookup):\n- Customer Name: ${accountInfo.ACCOUNT_NAME || accountInfo.NAME || 'Not available'}\n- Team ID: ${accountInfo.PRIMARY_VERCEL_TEAM_ID || accountInfo.TEAM_ID_C || 'Not available'}\n- Account Segment: ${accountInfo.SEGMENT || accountInfo.SUBSCRIPTION_PLAN_C || 'Unknown'}\n- AE Owner: ${accountInfo.OWNER_NAME || 'Not available'}${accountInfo.SLACK_CHANNEL_ID ? `\n- Customer Slack Channel ID: ${accountInfo.SLACK_CHANNEL_ID}${accountInfo.SLACK_CHANNEL_NAME ? ` (#${accountInfo.SLACK_CHANNEL_NAME})` : ''}` : ''}${accountInfo.SLACK_INTERNAL_CHANNEL_ID ? `\n- Internal Slack Channel ID: ${accountInfo.SLACK_INTERNAL_CHANNEL_ID}${accountInfo.SLACK_INTERNAL_CHANNEL_NAME ? ` (#${accountInfo.SLACK_INTERNAL_CHANNEL_NAME})` : ''}` : ''}\n\nUse this to pre-fill ticket details. Pass slackChannelId, slackChannelName, slackInternalChannelId, slackInternalChannelName to createTicket if available.` : ''}`;
 
     console.log('[generateResponse] System prompt length:', systemPrompt.length);
     console.log('[generateResponse] Number of messages:', messages.length);
     console.log('[generateResponse] Calling generateText...');
+
+    let ticketUrl: string | undefined;
 
     const response = await generateText({
       model: gateway("openai/gpt-4o"),
@@ -141,7 +148,9 @@ For INFORMATIONAL questions about DSE: Do NOT create a ticket. These are field t
           searchQuery: z.string().describe("What you're looking for (e.g., 'team ID', 'project ID', 'customer name', 'company name')"),
         }),
         execute: async ({ searchQuery }: { searchQuery: string }) => {
+          thinkingManager?.addToolStart("searchChannelHistory", { searchQuery });
           if (!channelHistory) {
+            thinkingManager?.completeCurrentTool({ found: false });
             return {
               found: false,
               message: "No channel history available to search.",
@@ -173,6 +182,7 @@ For INFORMATIONAL questions about DSE: Do NOT create a ticket. These are field t
               : "No direct matches found in channel history.",
           };
 
+          thinkingManager?.completeCurrentTool(results);
           return results;
         },
       }),
@@ -185,6 +195,10 @@ For INFORMATIONAL questions about DSE: Do NOT create a ticket. These are field t
           teamId: z.string().describe("Customer's Vercel team ID in format team_XXXXXXXXXXXXXXXXXXXXXXXX. If not provided in conversation, use 'team_unknown'"),
           notionLink: z.string().optional().describe("Notion link for account tracking if the customer account is known. Find it at https://www.notion.so/vercel/1b6e06b059c48055a637c5f6de528de7"),
           projectId: z.string().optional().describe("Customer's Vercel project ID in format prj_XXXXXXXXXXXXXXXXXXXXXXXX if mentioned in the conversation"),
+          slackChannelId: z.string().optional().describe("Customer-facing Slack channel ID from account context (e.g. C0AJ0PLHVRB)"),
+          slackChannelName: z.string().optional().describe("Customer-facing Slack channel name from account context (without #)"),
+          slackInternalChannelId: z.string().optional().describe("Internal Slack channel ID from account context"),
+          slackInternalChannelName: z.string().optional().describe("Internal Slack channel name from account context (without #)"),
           priority: z.enum(["🔴 SEV 1/Urgent", "🟠 SEV 2/High", "🟡 SEV 3/Non-Urgent"]).optional().describe("Priority level based on urgency and customer impact. Default to SEV 3 unless customer is blocked or experiencing production issues"),
           elevatedPriorityContext: z.string().optional().describe("If priority is SEV 1 or SEV 2, provide context explaining why it's urgent (e.g., production down, customer escalation)"),
           issueCategory: z.enum([
@@ -195,7 +209,7 @@ For INFORMATIONAL questions about DSE: Do NOT create a ticket. These are field t
             "product-feature-guidance"
           ]).describe("Category of the issue for internal tracking (only in-scope DS categories)"),
           issueTitle: z.string().describe("A short, concise title for the ticket (5-10 words max). Examples: 'Investigate Fluid Compute session overlap', 'Cold start performance degradation', 'ISR cache not invalidating'"),
-          issueSummary: z.string().describe("A concise 2-4 sentence summary of the issue/request from the conversation. Focus on the problem, impact, and what the customer needs help with. Do NOT copy the entire conversation - just summarize the key points."),
+          issueSummary: z.string().describe("1-2 sentences max. State the problem and what DSE needs to do. No fluff."),
         }),
         execute: async ({
           customer,
@@ -204,6 +218,10 @@ For INFORMATIONAL questions about DSE: Do NOT create a ticket. These are field t
           teamId,
           notionLink,
           projectId,
+          slackChannelId,
+          slackChannelName,
+          slackInternalChannelId,
+          slackInternalChannelName,
           priority,
           elevatedPriorityContext,
           issueCategory,
@@ -216,35 +234,57 @@ For INFORMATIONAL questions about DSE: Do NOT create a ticket. These are field t
           teamId: string;
           notionLink?: string;
           projectId?: string;
+          slackChannelId?: string;
+          slackChannelName?: string;
+          slackInternalChannelId?: string;
+          slackInternalChannelName?: string;
           priority?: "🔴 SEV 1/Urgent" | "🟠 SEV 2/High" | "🟡 SEV 3/Non-Urgent";
           elevatedPriorityContext?: string;
           issueCategory: "technical-troubleshooting" | "onboarding-enablement" | "performance-optimization" | "usage-cost-guidance" | "product-feature-guidance";
           issueTitle: string;
           issueSummary: string;
         }) => {
+          thinkingManager?.addToolStart("createTicket", { issueTitle });
           updateStatus?.("is posting ticket to DS team channel...");
 
-          // Use the AI-generated summary instead of copying all messages
-          const requestWithThread = slackThreadUrl
-            ? `${issueSummary}\n\n_Slack Thread:_ ${slackThreadUrl}`
-            : issueSummary;
+          // accountInfo values take precedence over AI-guessed values
+          const resolvedTeamId = accountInfo?.PRIMARY_VERCEL_TEAM_ID ?? teamId;
+          const resolvedSegment = accountInfo?.SEGMENT ?? customerSegment;
+          const resolvedSlackChannelId = accountInfo?.SLACK_CHANNEL_ID ?? slackChannelId;
+          const resolvedSlackInternalChannelId = accountInfo?.SLACK_INTERNAL_CHANNEL_ID ?? slackInternalChannelId;
+
+          const requestWithThread = issueSummary;
+
+          const [aeSlackId, csmSlackId] = await Promise.all([
+            accountInfo?.OWNER_NAME ? lookupSlackUserIdByName(accountInfo.OWNER_NAME) : Promise.resolve(null),
+            accountInfo?.CUSTOMER_SUCCESS_MANAGER_NAME ? lookupSlackUserIdByName(accountInfo.CUSTOMER_SUCCESS_MANAGER_NAME) : Promise.resolve(null),
+          ]);
 
           try {
             const result = await postTicketCreationMessage({
               customer,
               customerName,
-              customerSegment,
-              teamId,
+              customerSegment: resolvedSegment,
+              teamId: resolvedTeamId,
               notionLink,
               projectId,
+              slackChannelId: resolvedSlackChannelId,
+              slackChannelName,
+              slackInternalChannelId: resolvedSlackInternalChannelId,
+              slackInternalChannelName,
               priority,
               elevatedPriorityContext,
+              ae: aeSlackId ?? accountInfo?.OWNER_NAME,
+              csm: csmSlackId ?? accountInfo?.CUSTOMER_SUCCESS_MANAGER_NAME,
               request: requestWithThread,
               slackThreadUrl,
               issueCategory,
               issueTitle,
+              requestingUserId,
             });
 
+            ticketUrl = `https://slack.com/app_redirect?channel=${result.channelId}&thread_ts=${result.messageTs}`;
+            thinkingManager?.completeCurrentTool({ success: true });
             return {
               success: true,
               message: `✅ DSE ticket created successfully! Posted to DSE team channel with:\n- Customer: ${customerName}\n- Team ID: ${teamId}\n- Priority: ${priority || "🟡 SEV 3/Non-Urgent"}\n\nDSE team will investigate and provide guidance.`,
@@ -252,6 +292,9 @@ For INFORMATIONAL questions about DSE: Do NOT create a ticket. These are field t
             };
           } catch (error) {
             console.error("Failed to post ticket creation message:", error);
+            thinkingManager?.errorCurrentTool(
+              error instanceof Error ? error.message : "Unknown error",
+            );
             return {
               success: false,
               error: `Failed to post ticket: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -275,17 +318,17 @@ For INFORMATIONAL questions about DSE: Do NOT create a ticket. These are field t
 
     if (!response.text || response.text.trim().length === 0) {
       console.error('[generateResponse] ERROR: Generated text is empty!');
-      return "⚠️ The AI response was empty. Please try rephrasing your request.";
+      return { text: "⚠️ The AI response was empty. Please try rephrasing your request.", ticketUrl };
     }
 
     // Convert markdown to Slack mrkdwn format
     const formattedText = response.text.replace(/\[(.*?)\]\((.*?)\)/g, "<$2|$1>").replace(/\*\*/g, "*");
     console.log('[generateResponse] Successfully generated response');
-    return formattedText;
+    return { text: formattedText, ticketUrl };
 
   } catch (error) {
     console.error('[generateResponse] ERROR during text generation:', error);
     console.error('[generateResponse] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-    return "⚠️ An error occurred while generating the response. Please check the logs and try again.";
+    return { text: "⚠️ An error occurred while generating the response. Please check the logs and try again.", ticketUrl: undefined };
   }
 };

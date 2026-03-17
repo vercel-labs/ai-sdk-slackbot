@@ -5,6 +5,7 @@ import { client, getThread, getChannelHistory, updateStatusUtil } from "./slack-
 import { generateResponse } from "./generate-response";
 import { classifyRequest } from "./classify-request";
 import { generateRoutingResponse } from "./generate-routing-response";
+import { ThinkingStreamManager } from "./thinking-stream-manager";
 
 export async function assistantThreadMessage(
   event: AssistantThreadStartedEvent,
@@ -68,37 +69,48 @@ export async function handleNewAssistantMessage(
   let result: string;
 
   if (!classification.isInScope) {
-    // Out of scope - provide routing guidance
+    // Out of scope - provide routing guidance as ephemeral
     result = generateRoutingResponse({
       category: classification.category,
       suggestedTeam: classification.suggestedTeam,
       reasoning: classification.reasoning,
     });
+    await client.chat.postEphemeral({
+      channel: channel,
+      thread_ts: thread_ts,
+      user: event.user,
+      text: result,
+    });
   } else {
-    // In scope - generate full response
-    await updateStatus("is working on your request...");
-
-    // Build Slack thread URL
+    // In scope - stream handles progress; final answer is embedded via stopStream
     const slackThreadUrl = `https://slack.com/app_redirect?channel=${channel}&thread_ts=${thread_ts}`;
 
-    result = await generateResponse(messages, updateStatus, slackThreadUrl, channelHistory);
-  }
+    const thinkingManager = new ThinkingStreamManager({
+      client,
+      channel,
+      threadTs: thread_ts,
+      recipientUserId: event.user,
+      recipientTeamId: event.team,
+    });
 
-  await client.chat.postMessage({
-    channel: channel,
-    thread_ts: thread_ts,
-    text: result,
-    unfurl_links: false,
-    blocks: [
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: result,
-        },
-      },
-    ],
-  });
+    await thinkingManager.start();
+    try {
+      ({ text: result } = await generateResponse(
+        messages, undefined, slackThreadUrl, channelHistory,
+        undefined, undefined, thinkingManager, event.user,
+      ));
+      await thinkingManager.stop(result);
+      await client.chat.postEphemeral({
+        channel,
+        thread_ts,
+        user: event.user,
+        text: result,
+      });
+    } catch (error) {
+      await thinkingManager.stopWithError(error);
+      throw error;
+    }
+  }
 
   await updateStatus("");
 }

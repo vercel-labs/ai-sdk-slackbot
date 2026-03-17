@@ -13,7 +13,8 @@ const gateway = createGateway(
 
 export const classifyRequest = async (
   messages: ModelMessage[],
-  enrichedContext?: string
+  enrichedContext?: string,
+  accountInfo?: any,
 ) => {
   const systemPrompt = `You are a request classifier for the Vercel Developer Success Engineering (DSE) team.
 
@@ -129,7 +130,7 @@ Your job is to determine if a request is within the DSE team's scope of support.
 Engage DSE when the ask is time-boxed, technical, and high-leverage for adoption, performance, cost efficiency, or smooth onboarding/go-live.
 Re-route when it's: platform bugs (CSE), commercial (AE/CSM), long-term ownership (PA evaluation), implementation-heavy (Professional Services), or product-specific (see routing above).
 
-Analyze the user's request and classify it.${enrichedContext ? `\n\n${enrichedContext}` : ''}`;
+Analyze the user's request and classify it.${enrichedContext ? `\n\n${enrichedContext}` : ''}${accountInfo ? `\n\n## Salesforce Account Context:\n- Customer Name: ${accountInfo.NAME}\n- Team ID: ${accountInfo.TEAM_ID_C || 'Not available'}\n- Account Segment: ${accountInfo.SUBSCRIPTION_PLAN_C || 'Unknown'}\n\nUse this to inform routing decisions (e.g. segment-based eligibility for DSE engagement).` : ''}`;
 
   const { object } = await generateObject({
     model: gateway("openai/gpt-4o"),

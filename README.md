@@ -178,18 +178,15 @@ The bot maintains context within both threads and direct messages, so it can fol
    - Example: "Search for the latest news about AI technology"
    - You can also specify a domain: "Search for the latest sports news on bbc.com"
 
-3. **Linear Ticket Creation via Slack**: After responding to in-scope Developer Success requests, the bot posts a formatted message to your DS tickets channel matching your Linear Ask form.
-   - The bot extracts and includes all Linear Ask fields:
-     - Customer & Customer Name
-     - Customer Segment (Enterprise/Pro/Hobby)
-     - Team ID (format: `team_XXXXXXXXXXXXXXXXXXXXXXXX`)
-     - Project ID (format: `prj_XXXXXXXXXXXXXXXXXXXXXXXX`)
-     - Priority (SEV 1/Urgent, SEV 2/High, SEV 3/Non-Urgent)
-     - Elevated Priority Context (if applicable)
-     - Full request description with Slack thread link
-   - Simply ask: "Can you create a ticket for this?" or the bot may offer to create one after providing its response
-   - DS team members can then use Linear's Slack bot in that channel to create tickets with all the context pre-filled
-   - The bot notes that pre-debugging steps have been considered
+3. **Ticket Creation**: After responding to in-scope Developer Success requests, the bot posts a formatted Block Kit message to your DS tickets channel. The message uses a structured 2-column fields grid:
+   - **Attribution** (small/muted): who submitted the request
+   - **Title + request body**: prominent section block
+   - **Metadata grid** (3 rows):
+     - Team ID (with inline Admin link) | Customer name
+     - Segment | AE/CSM (auto-resolved to `@mention` via Slack user lookup from Snowflake `OWNER_NAME` / `CUSTOMER_SUCCESS_MANAGER_NAME`)
+     - Priority | Channels (internal | customer-facing)
+   - **Footer** (small/muted): Slack thread link + AI classification
+   - Simply ask: "Can you create a ticket for this?" or the bot will create one automatically for in-scope requests
 
 ### Request Classification
 
@@ -230,6 +227,16 @@ model: "openai/gpt-4o-mini"
 ```
 
 No other code changes or additional API keys are required!
+
+## Testing
+
+Deploy the branch to a staging environment on Vercel, then call the bot with `--preview` appended to your message:
+
+```
+@DSHelpBot <your request> --preview
+```
+
+This lets you verify ticket message formatting (fields grid, AE/CSM mentions, context blocks) against the staging deployment before merging.
 
 ## License
 

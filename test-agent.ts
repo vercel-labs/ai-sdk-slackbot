@@ -19,6 +19,7 @@ if (process.env.SLACK_TICKET_CHANNEL_ID && !process.env.SLACK_TICKET_CHANNEL_ID.
 
 import { ModelMessage } from "ai";
 import { classifyRequest } from "./lib/classify-request";
+import { lookupAccountBySlackChannel } from "./lib/salesforce-lookup";
 
 interface TestScenario {
   name: string;
@@ -107,6 +108,51 @@ const testScenarios: TestScenario[] = [
     expectedInScope: false,
     expectedCategory: "out-of-scope",
     expectedTeamRouting: "#help-ai-enablement",
+  },
+
+  // FORWARDED MESSAGE TESTS
+  // These simulate the content that handle-app-mention.ts extracts from slack attachments
+  // with is_msg_unfurl === true, formatted as "[Forwarded from AuthorName]: <text>"
+  {
+    name: "Test 30: Forwarded Message - Technical Issue (In Scope)",
+    description: "AE forwards a customer message about build failures",
+    channelHistory: "",
+    // Mirrors: forwardedAttachment.author_name + forwardedAttachment.text
+    fieldTeamRequest:
+      "[Forwarded from Jane Doe]: Our builds started failing with FUNCTION_INVOCATION_TIMEOUT after deploying yesterday. Team ID is team_acme123. The function times out after 10s but only on POST /api/checkout.",
+    expectedInScope: true,
+    expectedCategory: "technical-troubleshooting",
+  },
+  {
+    name: "Test 31: Forwarded Message - Billing Question (Out of Scope)",
+    description: "CSM forwards a customer message about overage charges",
+    channelHistory: "",
+    fieldTeamRequest:
+      "[Forwarded from John Smith]: We got an unexpected invoice for $4,200 in bandwidth overages last month. We'd like to dispute this and understand how to avoid it going forward.",
+    expectedInScope: false,
+    expectedCategory: "billing-pricing-commercial",
+    expectedTeamRouting: "AE/CSM",
+  },
+  {
+    name: "Test 32: Forwarded Message - No Author Name",
+    description:
+      "Forwarded message where attachment had no author_name (anonymous/missing)",
+    channelHistory: "",
+    // When forwardedAttachment.author_name is falsy, authorInfo is '' so no prefix
+    fieldTeamRequest:
+      "Our Next.js app is throwing 500 errors on image optimization routes. Project: prj_img999, Team: team_photos42. Started after upgrading to Next.js 15.",
+    expectedInScope: true,
+    expectedCategory: "technical-troubleshooting",
+  },
+  {
+    name: "Test 33: Forwarded Message - Platform Outage (Out of Scope)",
+    description: "Forwarded customer complaint about widespread deployment failures",
+    channelHistory: "",
+    fieldTeamRequest:
+      "[Forwarded from Alice Chen]: All deployments across all our projects have been failing for the last hour with 'BUILD_FAILED' errors. Nothing changed on our end. This is a production emergency.",
+    expectedInScope: false,
+    expectedCategory: "support-incidents",
+    expectedTeamRouting: "CSE via support ticket",
   },
 
   // EDGE CASE TESTS
@@ -201,6 +247,118 @@ async function runTest(scenario: TestScenario): Promise<boolean> {
   }
 }
 
+// ─── Salesforce Lookup Tests ──────────────────────────────────────────────────
+
+interface SalesforceLookupScenario {
+  name: string;
+  channelId: string;
+  expectFound: boolean; // true = expect an account back, false = expect null
+}
+
+const salesforceLookupScenarios: SalesforceLookupScenario[] = [
+  {
+    name: "SF-1: Known channel should return account with NAME and TEAM_ID",
+    // Override with TEST_SLACK_CHANNEL_ID env var if you have a better known channel
+    channelId: process.env.TEST_SLACK_CHANNEL_ID || "C07VCNCPGPR",
+    expectFound: true,
+  },
+  {
+    name: "SF-2: Unknown/fake channel should return null",
+    channelId: "C000INVALID",
+    expectFound: false,
+  },
+];
+
+async function runSalesforceLookupTest(
+  scenario: SalesforceLookupScenario
+): Promise<boolean> {
+  console.log(`\n${"=".repeat(80)}`);
+  console.log(`Running: ${scenario.name}`);
+  console.log(`Channel ID: ${scenario.channelId}`);
+  console.log(`${"=".repeat(80)}\n`);
+
+  try {
+    const account = await lookupAccountBySlackChannel(scenario.channelId);
+
+    if (!scenario.expectFound) {
+      if (account === null) {
+        console.log("✅ Correctly returned null for unknown channel");
+        return true;
+      } else {
+        console.log(`❌ FAILED: Expected null but got account: ${account.NAME}`);
+        return false;
+      }
+    }
+
+    // Expect an account
+    if (!account) {
+      console.log(
+        `❌ FAILED: Expected an account but got null. Check that channel ${scenario.channelId} exists in Salesforce with SUBSCRIPTION_PLAN_C='Enterprise'.`
+      );
+      return false;
+    }
+
+    let passed = true;
+
+    // Validate NAME is present and non-empty
+    if (!account.NAME) {
+      console.log("❌ FAILED: account.NAME is missing or empty");
+      passed = false;
+    } else {
+      console.log(`✅ account.NAME present: "${account.NAME}"`);
+    }
+
+    // Validate TEAM_ID_C is present and non-empty
+    if (!account.TEAM_ID_C) {
+      console.log("❌ FAILED: account.TEAM_ID_C is missing or empty");
+      passed = false;
+    } else {
+      console.log(`✅ account.TEAM_ID_C present: "${account.TEAM_ID_C}"`);
+    }
+
+    // Log segment for visibility (not a hard assertion)
+    console.log(`   account.SUBSCRIPTION_PLAN_C: "${account.SUBSCRIPTION_PLAN_C ?? '(not set)'}"`);
+
+    return passed;
+  } catch (error) {
+    console.error(`❌ ERROR: Salesforce lookup threw an exception:`, error);
+    return false;
+  }
+}
+
+async function runSalesforceLookupTests(): Promise<{ name: string; passed: boolean }[]> {
+  const sfResults: { name: string; passed: boolean }[] = [];
+
+  const hasSnowflakeCreds =
+    process.env.SNOWFLAKE_USERNAME &&
+    process.env.SNOWFLAKE_TOKEN &&
+    process.env.SNOWFLAKE_DATA_ACCOUNT;
+
+  if (!hasSnowflakeCreds) {
+    console.log("\n" + "=".repeat(80));
+    console.log("SALESFORCE LOOKUP TESTS - SKIPPED");
+    console.log("=".repeat(80));
+    console.log("⚠️  Snowflake credentials not set. Skipping Salesforce tests.");
+    console.log("⚠️  Set SNOWFLAKE_USERNAME, SNOWFLAKE_TOKEN, SNOWFLAKE_DATA_ACCOUNT to enable.\n");
+    return sfResults;
+  }
+
+  console.log("\n" + "=".repeat(80));
+  console.log("SALESFORCE LOOKUP TESTS");
+  console.log("=".repeat(80));
+  console.log(`Using channel ID: ${process.env.TEST_SLACK_CHANNEL_ID || "C07VCNCPGPR (default)"}`);
+  console.log("Tip: set TEST_SLACK_CHANNEL_ID env var to use a different channel\n");
+
+  for (const scenario of salesforceLookupScenarios) {
+    const passed = await runSalesforceLookupTest(scenario);
+    sfResults.push({ name: scenario.name, passed });
+  }
+
+  return sfResults;
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
 async function runAllTests() {
   console.log("\n" + "=".repeat(80));
   console.log("DSE AGENT TEST SUITE - CLASSIFICATION ONLY");
@@ -215,6 +373,10 @@ async function runAllTests() {
     const passed = await runTest(scenario);
     results.push({ name: scenario.name, passed });
   }
+
+  // Salesforce lookup tests (skipped automatically if creds missing)
+  const sfResults = await runSalesforceLookupTests();
+  results.push(...sfResults);
 
   // Summary
   console.log("\n" + "=".repeat(80));
