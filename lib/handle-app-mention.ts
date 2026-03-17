@@ -31,6 +31,13 @@ export async function handleNewAppMention(
 
   const postFinalEphemeral = async (text: string, ticketUrl?: string) => {
     await thinkingManager.stop();
+    if (ticketUrl) {
+      await client.chat.postMessage({
+        channel: event.channel,
+        thread_ts: threadTs,
+        text: "Thanks for reaching out to DSE Anywhere. An expert will respond to you shortly.",
+      });
+    }
     await client.chat.postEphemeral({
       channel: event.channel,
       thread_ts: threadTs,
