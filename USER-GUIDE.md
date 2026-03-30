@@ -76,9 +76,12 @@ Use the agent when you need to:
 - Usage/cost analysis and efficiency guidance
 - Time-boxed onboarding, enablement, and go-live support
 - Product/feature guidance (how to use Vercel features, framework behavior)
+- v0 customer-specific issues (usage questions, troubleshooting, configuration — DSE investigates first, routes to v0 team only if platform-wide bug)
 
 **OUT-OF-SCOPE (Agent will route to appropriate team):**
 - Clear platform bugs/outages → CSE (support ticket)
+- Platform-wide v0 bugs/outages → v0 feedback form or #v0-customer-help
+- v0 billing/dashboard issues → CSE (support ticket)
 - Billing, pricing, contract questions → AE/CSM + FinOps/Deal Desk
 - Long-term embedded ownership → AE/CSM (Platform Architect evaluation)
 - Full implementation work → Professional Services

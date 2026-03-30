@@ -61,6 +61,8 @@ Your job is to determine if a request is within the DSE team's scope of support.
 - How to use Vercel features (Skew Protection, Session Tracing, Bot Protection, preview domains, build caching, Turbopack)
 - Framework behavior on Vercel (Next.js caching, routing, prefetching)
 - What's normal vs what's worth optimizing (build times, routing latency, cold starts)
+- v0 product guidance, usage questions, and customer-specific troubleshooting (e.g., v0 generation quality issues for a specific customer, v0 configuration, v0 integration with Vercel projects)
+- **IMPORTANT:** Customer-specific v0 issues follow the same pattern as Vercel platform issues — DSE investigates first, then routes to v0 team only if confirmed as a platform-wide v0 bug
 
 ### 5. One-off technical calls or async guidance
 - Short calls to walk through findings, reinforce recommendations, build customer confidence
@@ -122,13 +124,13 @@ Your job is to determine if a request is within the DSE team's scope of support.
 
 ### 11. Specific product routing
 - **AI SDK questions** → #help-ai-enablement in Slack
-- **v0 usage questions** → #v0-customer-help in Slack
+- **v0 platform-wide bugs/outages** → v0 feedback form at v0.dev or #v0-customer-help in Slack
 - **v0 billing/dashboard issues** → CSE (support ticket)
-- **v0 bugs/output** → v0 feedback form at v0.dev
+- **IMPORTANT:** Customer-specific v0 issues (usage questions, troubleshooting, performance, configuration) that require INVESTIGATION → **IN SCOPE for DSE** (same as Vercel platform: DSE investigates first, routes to v0 team only if confirmed platform-wide bug)
 
 ## Summary:
 Engage DSE when the ask is time-boxed, technical, and high-leverage for adoption, performance, cost efficiency, or smooth onboarding/go-live.
-Re-route when it's: platform bugs (CSE), commercial (AE/CSM), long-term ownership (PA evaluation), implementation-heavy (Professional Services), or product-specific (see routing above).
+Re-route when it's: platform bugs (CSE), commercial (AE/CSM), long-term ownership (PA evaluation), implementation-heavy (Professional Services), or product-specific (see routing above). Note: v0 customer-specific issues ARE in-scope — only platform-wide v0 bugs are routed out.
 
 Analyze the user's request and classify it.${enrichedContext ? `\n\n${enrichedContext}` : ''}${accountInfo ? `\n\n## Salesforce Account Context:\n- Customer Name: ${accountInfo.NAME}\n- Team ID: ${accountInfo.TEAM_ID_C || 'Not available'}\n- Account Segment: ${accountInfo.SUBSCRIPTION_PLAN_C || 'Unknown'}\n\nUse this to inform routing decisions (e.g. segment-based eligibility for DSE engagement).` : ''}`;
 

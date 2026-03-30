@@ -31,6 +31,8 @@ Engage Developer Success (DS) / DSEs when the request involves:
 	•	Recommending and explaining Vercel features (e.g., Skew Protection, Session Tracing, Bot Protection, preview domains, build caching, Turbopack).
 	•	Guidance on framework behavior on Vercel (e.g., Next.js caching, routing, prefetching).
 	•	Clarifying what’s normal vs what’s worth optimizing (build times, routing latency, cold starts).
+	•	v0 product guidance, customer-specific v0 troubleshooting, and v0 usage questions.
+	•	Customer-specific v0 issues follow the same pattern as Vercel platform issues — DSE investigates first, then routes to v0 team only if confirmed as a platform-wide v0 bug.
 
 5. One-off technical calls or async guidance
 	•	Short calls to:
@@ -88,5 +90,6 @@ Out of Scope (Re-route these requests)
 Triage Summary for Agents
 	•	Engage DS/DSE when the ask is time-boxed, technical, and high-leverage, aimed at adoption, performance, cost efficiency, or smooth onboarding/go-live.
 	•	Re-route when the request is long-term, commercial, implementation-heavy, operational, or better served by Pro Services, SE/FinOps, Support, or partners.
+	•	v0 customer-specific issues ARE in-scope — only platform-wide v0 bugs/outages are routed out.
 
 ⸻

@@ -71,6 +71,8 @@ IMPORTANT: Work state (not started, in progress, completed) does NOT determine i
 **Product & feature guidance:**
 - How to use Vercel features (Skew Protection, Session Tracing, Bot Protection, etc.)
 - Framework behavior on Vercel (Next.js caching, routing, prefetching)
+- v0 product guidance, customer-specific v0 troubleshooting, and v0 usage questions
+- Customer-specific v0 issues follow the same pattern as Vercel platform issues — DSE investigates first, routes to v0 team only if confirmed platform-wide bug
 
 **One-off technical guidance:**
 - Design pattern reviews
