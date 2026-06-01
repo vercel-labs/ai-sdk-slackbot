@@ -4,6 +4,7 @@ import type {
 } from "@slack/web-api";
 import { client, getThread, updateStatusUtil } from "./slack-utils";
 import { generateResponse } from "./generate-response";
+import { runtimeContextFromEvent } from "./policy/runtime-context";
 
 export async function assistantThreadMessage(
   event: AssistantThreadStartedEvent,
@@ -50,8 +51,12 @@ export async function handleNewAssistantMessage(
   const updateStatus = updateStatusUtil(channel, thread_ts);
   await updateStatus("is thinking...");
 
+  const runtimeContext = runtimeContextFromEvent({
+    channel,
+    user: event.user,
+  });
   const messages = await getThread(channel, thread_ts, botUserId);
-  const result = await generateResponse(messages, updateStatus);
+  const result = await generateResponse(messages, runtimeContext, updateStatus);
 
   await client.chat.postMessage({
     channel: channel,

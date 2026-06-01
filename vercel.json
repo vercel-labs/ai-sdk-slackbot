@@ -9,6 +9,5 @@
     "api/events.ts": {
       "maxDuration": 60
     }
-  },
-  "outputDirectory": "dist"
+  }
 }

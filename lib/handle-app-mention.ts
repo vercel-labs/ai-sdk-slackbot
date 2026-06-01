@@ -1,6 +1,7 @@
 import { AppMentionEvent } from "@slack/web-api";
 import { client, getThread } from "./slack-utils";
 import { generateResponse } from "./generate-response";
+import { runtimeContextFromEvent } from "./policy/runtime-context";
 
 const updateStatusUtil = async (
   initialStatus: string,
@@ -37,16 +38,14 @@ export async function handleNewAppMention(
 
   const { thread_ts, channel } = event;
   const updateMessage = await updateStatusUtil("is thinking...", event);
+  const runtimeContext = runtimeContextFromEvent({
+    channel,
+    user: event.user,
+  });
 
-  if (thread_ts) {
-    const messages = await getThread(channel, thread_ts, botUserId);
-    const result = await generateResponse(messages, updateMessage);
-    await updateMessage(result);
-  } else {
-    const result = await generateResponse(
-      [{ role: "user", content: event.text }],
-      updateMessage,
-    );
-    await updateMessage(result);
-  }
+  const messages = thread_ts
+    ? await getThread(channel, thread_ts, botUserId)
+    : [{ role: "user" as const, content: event.text }];
+  const result = await generateResponse(messages, runtimeContext, updateMessage);
+  await updateMessage(result);
 }
