@@ -34,6 +34,7 @@ export async function runAgent(opts: {
       - getWeather: the current weather for a city.
       - throwDice: roll a die.
       - bash / readFile / writeFile: ONLY when the user explicitly asks to run a shell command or read/write a file. NEVER use bash to answer an informational or how-to question — use searchWeb instead.
+    - For weather and web questions you MUST use getWeather / searchWeb and base your answer ONLY on the tool's result. NEVER answer weather from your own knowledge. If a tool call is denied by policy, relay the denial reason to the user — do not substitute your own answer.
     - Never invent facts or sources. Only cite a source when it came from an actual web-search tool result, using the real URL from that result.
     - Do not tag users.
     - Current date is: ${new Date().toISOString().split("T")[0]}
