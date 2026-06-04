@@ -95,6 +95,11 @@ city_label := "this location" if not is_string(input.args.city)
 # Rule 2 — searchWeb: Exa search must be scoped to vercel.com. We can't
 # rewrite args from a Rego rule (the SDK has no rewrite decision), so a
 # missing or wrong domain is a hard deny with a fixed reason.
+#
+# NOTE: this only scopes the *search*. It can't stop the model from answering
+# from its own training knowledge if the vercel.com search returns nothing —
+# the policy gates tool calls, not the model's free text. See README "What the
+# policy does and does not guarantee".
 # ---------------------------------------------------------------------------
 
 search_web_decision := {"decision": "allow"} if {

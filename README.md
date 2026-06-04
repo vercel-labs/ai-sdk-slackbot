@@ -177,6 +177,19 @@ You can also disable any of the existing tools by removing the tool in the `lib/
 
 Every tool call is gated by Open Policy Agent (Rego) policies in [`policies/decision.rego`](./policies/decision.rego) — you can change what the bot is allowed to do by editing that file, no TypeScript changes required. `POLICY_MODE` defaults to in-process WASM (the committed `policies/policy.wasm`), so running the bot needs no `opa` binary. See [policies/README.md](./policies/README.md) for the input shape, how to add a rule, dev (HTTP hot-reload) vs prod (WASM), and `pnpm policy:test`.
 
+### What the policy does and does not guarantee
+
+The policy gates **tool calls** — what a tool is allowed to *do*. It does **not**
+constrain the model's free text. For example, the `searchWeb` policy guarantees a
+web search only ever queries `vercel.com`; it cannot stop the model from then
+answering a question from its own training knowledge (e.g. explaining Bitcoin even
+when the vercel.com search returned nothing). The system prompt asks the model to
+answer only from tool results, but that is best-effort, not enforced — a hard
+"only answer from allowed sources" guarantee would require output-side validation
+(checking the answer is supported by the tool results before sending), which is
+out of scope here. The `🔧` footer on each reply shows which tool actually ran, so
+a tool-less or unscoped answer is at least visible.
+
 ## Optional: run a local model with Ollama
 
 Instead of OpenAI you can run a local model for free, offline:

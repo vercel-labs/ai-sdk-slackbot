@@ -90,3 +90,14 @@ POLICY_MODE=http pnpm dev
 
 Edit `decision.rego`. The next tool call uses the new rule — no rebuild,
 no restart.
+
+## Limitations
+
+These policies gate **tool calls** — whether a tool runs and with what input —
+not the model's free-text output. A rule like `searchWeb` (only `vercel.com`)
+guarantees the *search* is scoped, but it cannot stop the model from answering
+from its own training knowledge if the scoped search returns nothing. The system
+prompt asks the model to answer only from tool results; that's best-effort, not
+enforced. A hard "only answer from allowed sources" guarantee needs output-side
+validation (verifying the answer is supported by the tool results), which lives
+above the policy layer.
