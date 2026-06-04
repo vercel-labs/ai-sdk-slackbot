@@ -77,7 +77,7 @@ test_dice_allowed_channel if {
 	call.decision.decision == "allow" with input as {
 		"tool": {"name": "throwDice"},
 		"args": {},
-		"runtimeContext": {"channelId": "C0B6YBUHMME"},
+		"runtimeContext": {"channelName": "general"},
 	}
 }
 
@@ -85,10 +85,10 @@ test_dice_denied_channel if {
 	d := call.decision with input as {
 		"tool": {"name": "throwDice"},
 		"args": {},
-		"runtimeContext": {"channelId": "C0OTHER"},
+		"runtimeContext": {"channelName": "random"},
 	}
 	d.decision == "deny"
-	contains(d.reason, "allowed channel")
+	contains(d.reason, "general")
 }
 
 # ---------- bash ----------

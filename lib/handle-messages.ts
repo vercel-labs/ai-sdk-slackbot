@@ -51,7 +51,7 @@ export async function handleNewAssistantMessage(
   const updateStatus = updateStatusUtil(channel, thread_ts);
   await updateStatus("is thinking...");
 
-  const runtimeContext = runtimeContextFromEvent({
+  const runtimeContext = await runtimeContextFromEvent({
     channel,
     user: event.user,
   });

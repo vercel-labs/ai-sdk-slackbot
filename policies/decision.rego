@@ -9,7 +9,7 @@
 #     "tool":    { "name": <string> },
 #     "args":    <tool input>,
 #     "messages":[...],
-#     "runtimeContext": <opaque>,
+#     "runtimeContext": { "channelId", "channelName", "userId" },
 #     # Only for the bash tool, added by toInput in lib/policy/load.ts:
 #     "bash":    { "program": <string>, "argv": [<string>], "suspicious": <bool> }
 #   }
@@ -33,10 +33,11 @@ allowed_domain := "vercel.com"
 # Display version of the city list, used in deny reasons.
 allowed_cities_display := "San Francisco, Austin, New York, London, Berlin"
 
-# Slack channel ID where `throwDice` is permitted. Replace with the ID of your
-# #allowed-channel — right-click the channel in Slack → "View channel details",
-# the ID is at the bottom (starts with C for public channels, G for private).
-allowed_dice_channel := "C0B6YBUHMME"
+# Slack channel name where `throwDice` is permitted. Defaults to "general",
+# which every workspace has, so the example works out of the box. Matched by
+# name (not ID) since the #general ID differs per workspace. Change this to
+# gate dice to a different channel.
+allowed_dice_channel := "general"
 
 # Bash commands the bot may run. Add or remove a command here to change what's
 # allowed — everything not listed (rm, curl, git, mkdir, ...) is denied.
@@ -106,14 +107,15 @@ search_web_decision := {"decision": "allow"} if {
 
 # ---------------------------------------------------------------------------
 # Rule 3 — throwDice: only permitted in the configured allowed channel.
-# `runtimeContext.channelId` is set by the Slack handler per request.
+# `runtimeContext.channelName` is resolved from the channel ID by the Slack
+# handler per request (see lib/policy/runtime-context.ts).
 # ---------------------------------------------------------------------------
 
 throw_dice_decision := {"decision": "allow"} if {
-	input.runtimeContext.channelId == allowed_dice_channel
+	input.runtimeContext.channelName == allowed_dice_channel
 } else := {
 	"decision": "deny",
-	"reason": "Sorry, throwDice can only be used in the allowed channel.",
+	"reason": sprintf("Sorry, throwDice can only be used in #%s.", [allowed_dice_channel]),
 }
 
 # ---------------------------------------------------------------------------

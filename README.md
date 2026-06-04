@@ -53,6 +53,7 @@ pnpm install
       - `app_mentions:read`
       - `assistant:write`
       - `chat:write`
+      - `channels:read` (lets the dice policy resolve the channel name; add `groups:read` for private channels)
       - `im:history`
       - `im:read`
       - `im:write`

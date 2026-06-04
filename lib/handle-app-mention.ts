@@ -38,7 +38,7 @@ export async function handleNewAppMention(
 
   const { thread_ts, channel } = event;
   const updateMessage = await updateStatusUtil("is thinking...", event);
-  const runtimeContext = runtimeContextFromEvent({
+  const runtimeContext = await runtimeContextFromEvent({
     channel,
     user: event.user,
   });
