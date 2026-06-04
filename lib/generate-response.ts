@@ -48,27 +48,37 @@ export const generateResponse = async (
     updateStatus,
   });
 
-  // One consistent footer at the bottom listing every tool involved and its
-  // outcome (e.g. "🔧 getWeather" / "🔧 getWeather (blocked by policy)").
+  // One consistent footer at the bottom, always present, listing every tool and
+  // its outcome (e.g. "🔧 getWeather" / "🔧 getWeather (blocked by policy)").
+  // "🔧 none" when no tool ran, so a tool-less (possibly hallucinated) answer is
+  // never ambiguous.
   const footer =
     outcomes.length > 0
       ? `\n\n_🔧 ${[...new Set(outcomes.map(toolLabel))].join(", ")}_`
-      : "";
+      : "\n\n_🔧 none_";
 
   // Convert markdown to Slack mrkdwn format.
   const answer = text
     .replace(/\[(.*?)\]\((.*?)\)/g, "<$2|$1>")
     .replace(/\*\*/g, "*");
 
-  // If a tool was denied/errored and nothing ran successfully, show the policy
-  // reason verbatim rather than the model's (possibly confabulated) text.
+  // Policy denials / tool errors: surface the reason verbatim in the body. The
+  // tool name + status live in the footer, so the body stays just the reason.
   const problems = outcomes.filter((o) => o.status !== "used");
+  const problemNotes = problems.map(
+    (o) => o.reason ?? `${o.toolName} ${o.status}`,
+  );
   const anySuccess = outcomes.some((o) => o.status === "used");
-  if (problems.length > 0 && !anySuccess) {
-    const body = problems
-      .map((o) => o.reason ?? `${o.toolName} ${o.status}`)
-      .join("\n");
-    return body + footer;
+
+  // Nothing ran successfully → show only the reason(s), never the model's
+  // (possibly confabulated) text.
+  if (problemNotes.length > 0 && !anySuccess) {
+    return problemNotes.join("\n") + footer;
+  }
+  // A tool succeeded → keep the answer, and append any denial/error notes so a
+  // blocked call in a multi-tool turn isn't silently dropped.
+  if (problemNotes.length > 0) {
+    return [answer, ...problemNotes].join("\n\n") + footer;
   }
 
   return answer + footer;
