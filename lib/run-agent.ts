@@ -3,12 +3,19 @@ import { z } from "zod";
 import { model } from "./model";
 import { exa } from "./utils";
 
+export type ToolStatus = "used" | "denied" | "failed";
+
+export interface ToolOutcome {
+  toolName: string;
+  status: ToolStatus;
+  /** Policy reason (denied) or error text (failed). */
+  reason?: string;
+}
+
 export interface AgentResult {
   text: string;
-  /** Names of tools that ran successfully — surfaced as a footer. */
-  usedTools: string[];
-  /** User-facing lines for tool calls denied by policy or that errored. */
-  failures: string[];
+  /** One entry per tool call, in order, with its outcome. */
+  outcomes: ToolOutcome[];
 }
 
 export async function runAgent(opts: {
@@ -120,27 +127,30 @@ export async function runAgent(opts: {
   //   - tool error: a `tool-result` part with output.type error-text/error-json
   //   - policy denial: a `tool-approval-response` part with approved === false
   //     (no tool-result is produced) — carries the policy reason.
-  const usedTools = new Set<string>();
-  const failures: string[] = [];
+  const outcomes: ToolOutcome[] = [];
   for (const step of result.steps ?? []) {
     for (const part of (step.content ?? []) as any[]) {
       if (part?.type === "tool-result") {
         const outputType = part.output?.type;
         if (outputType === "error-text" || outputType === "error-json") {
           const value = part.output.value ?? "unknown error";
-          failures.push(
-            `*${part.toolName}* failed: ${typeof value === "string" ? value : JSON.stringify(value)}`,
-          );
+          outcomes.push({
+            toolName: part.toolName,
+            status: "failed",
+            reason: typeof value === "string" ? value : JSON.stringify(value),
+          });
         } else {
-          usedTools.add(part.toolName);
+          outcomes.push({ toolName: part.toolName, status: "used" });
         }
       } else if (part?.type === "tool-approval-response" && part.approved === false) {
-        failures.push(
-          `*${part.toolCall?.toolName ?? "tool"}* was blocked by policy: ${part.reason ?? "no reason provided"}`,
-        );
+        outcomes.push({
+          toolName: part.toolCall?.toolName ?? "tool",
+          status: "denied",
+          reason: part.reason,
+        });
       }
     }
   }
 
-  return { text: result.text, usedTools: [...usedTools], failures };
+  return { text: result.text, outcomes };
 }

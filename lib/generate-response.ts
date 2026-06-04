@@ -1,6 +1,6 @@
 import { ModelMessage } from "ai";
 import { loadToolApproval } from "./policy/load";
-import { runAgent } from "./run-agent";
+import { runAgent, type ToolOutcome } from "./run-agent";
 import { SlackRuntimeContext } from "./policy/runtime-context";
 
 // bash/readFile/writeFile run in an in-memory just-bash sandbox (offline,
@@ -40,11 +40,7 @@ export const generateResponse = async (
     getBashTools(),
   ]);
 
-  // runAgent classifies the tool outcomes: `usedTools` are tools that ran
-  // successfully (surfaced as a footer), `failures` are user-facing lines for
-  // policy denials / tool errors. Surfacing denials verbatim guards against a
-  // model confabulating a "success" after a denied call.
-  const { text, usedTools, failures } = await runAgent({
+  const { text, outcomes } = await runAgent({
     messages,
     runtimeContext,
     toolApproval,
@@ -52,24 +48,34 @@ export const generateResponse = async (
     updateStatus,
   });
 
-  const toolNote =
-    usedTools.length > 0 ? `\n\n_🔧 used: ${usedTools.join(", ")}_` : "";
+  // One consistent footer at the bottom listing every tool involved and its
+  // outcome (e.g. "🔧 getWeather" / "🔧 getWeather (blocked by policy)").
+  const footer =
+    outcomes.length > 0
+      ? `\n\n_🔧 ${[...new Set(outcomes.map(toolLabel))].join(", ")}_`
+      : "";
 
   // Convert markdown to Slack mrkdwn format.
   const answer = text
     .replace(/\[(.*?)\]\((.*?)\)/g, "<$2|$1>")
     .replace(/\*\*/g, "*");
 
-  if (failures.length > 0) {
-    // If nothing ran successfully, return only the failure(s) so a confabulated
-    // "success" never reaches the user. If some tool did succeed, keep the
-    // answer and append the failures so a valid multi-part answer isn't
-    // clobbered by one denial.
-    if (usedTools.length > 0 && answer.trim().length > 0) {
-      return [answer + toolNote, ...failures].join("\n\n");
-    }
-    return failures.join("\n");
+  // If a tool was denied/errored and nothing ran successfully, show the policy
+  // reason verbatim rather than the model's (possibly confabulated) text.
+  const problems = outcomes.filter((o) => o.status !== "used");
+  const anySuccess = outcomes.some((o) => o.status === "used");
+  if (problems.length > 0 && !anySuccess) {
+    const body = problems
+      .map((o) => o.reason ?? `${o.toolName} ${o.status}`)
+      .join("\n");
+    return body + footer;
   }
 
-  return answer + toolNote;
+  return answer + footer;
 };
+
+function toolLabel(outcome: ToolOutcome): string {
+  if (outcome.status === "used") return outcome.toolName;
+  const suffix = outcome.status === "denied" ? "blocked by policy" : "failed";
+  return `${outcome.toolName} (${suffix})`;
+}
