@@ -5,7 +5,7 @@ import {
   httpPolicyClient,
   wasmPolicyClient,
   type PolicyClient,
-} from "../policy-pkg";
+} from "@ai-sdk/policy-opa";
 
 const POLICY_PATH = "agent/call/decision";
 
@@ -50,8 +50,8 @@ async function build(): Promise<any> {
 const SHELL_OPERATORS = /[;&|`\n\r]|\|\||&&|\$\(|[<>]/;
 const LEADING_ENV_ASSIGNMENT = /^\s*\w+=/;
 
-// Default OPA input shape (mirrors lib/policy-pkg/opa/opa-policy.ts). For the
-// bash tool we additionally tokenize the command into { program, argv,
+// Default OPA input shape (mirrors @ai-sdk/policy-opa's DefaultOpaInput). For
+// the bash tool we additionally tokenize the command into { program, argv,
 // suspicious } so the Rego allowlist can gate it without parsing strings.
 function toInput(args: {
   toolCall: { toolName: string; input: unknown };
