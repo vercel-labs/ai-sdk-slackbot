@@ -13,15 +13,18 @@ An AI-powered chatbot for Slack powered by the [AI SDK by Vercel](https://sdk.ve
 - Built-in tools for enhanced capabilities:
   - Real-time weather lookup
   - Web search (powered by [Exa](https://exa.ai))
+  - Sandboxed `bash` (via [bash-tool](https://github.com/vercel-labs/bash-tool) + [just-bash](https://github.com/vercel-labs/just-bash))
+- **Policy-gated tool calls** — every tool call is checked against Open Policy Agent (Rego) policies in [`policies/`](./policies), editable without touching TypeScript. See [policies/README.md](./policies/README.md).
 - Easily extensible architecture to add custom tools (e.g., knowledge search)
 
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) 18+ installed
 - Slack workspace with admin privileges
-- [OpenAI API key](https://platform.openai.com/api-keys)
+- [OpenAI API key](https://platform.openai.com/api-keys) (default model), **or** a local [Ollama](https://ollama.com) install (see [Optional: local model](#optional-run-a-local-model-with-ollama))
 - [Exa API key](https://exa.ai) (for web search functionality)
 - A server or hosting platform (e.g., [Vercel](https://vercel.com)) to deploy the bot
+- [OPA](https://www.openpolicyagent.org/docs/latest/#running-opa) (`opa`) — only needed to edit policies (`pnpm policy:build` / `pnpm policy:test`); the committed `policies/policy.wasm` runs without it
 
 ## Setup
 
@@ -79,14 +82,14 @@ Create a `.env` file in the root of your project with the following:
 SLACK_BOT_TOKEN=xoxb-your-bot-token
 SLACK_SIGNING_SECRET=your-signing-secret
 
-# OpenAI Credentials
+# Model provider (defaults to OpenAI gpt-4o)
 OPENAI_API_KEY=your-openai-api-key
 
 # Exa API Key (for web search functionality)
 EXA_API_KEY=your-exa-api-key
 ```
 
-Replace the placeholder values with your actual tokens.
+Replace the placeholder values with your actual tokens. See [`.env.example`](./.env.example) for optional settings (`MODEL_PROVIDER`, `OLLAMA_MODEL`, `OPENAI_MODEL`, `POLICY_MODE`).
 
 ## Local Development
 
@@ -163,9 +166,27 @@ The chatbot is built with an extensible architecture using the [AI SDK's tool sy
 - Custom API integrations
 - Company documentation search
 
-To add a new tool, extend the tools object in the `lib/ai.ts` file following the existing pattern.
+To add a new tool, extend the tools object in the `lib/generate-response.ts` file following the existing pattern.
 
-You can also disable any of the existing tools by removing the tool in the `lib/ai.ts` file.
+You can also disable any of the existing tools by removing the tool in the `lib/generate-response.ts` file.
+
+## Policies
+
+Every tool call is gated by Open Policy Agent (Rego) policies in [`policies/decision.rego`](./policies/decision.rego) — you can change what the bot is allowed to do by editing that file, no TypeScript changes required. `POLICY_MODE` defaults to in-process WASM (the committed `policies/policy.wasm`), so running the bot needs no `opa` binary. See [policies/README.md](./policies/README.md) for the input shape, how to add a rule, dev (HTTP hot-reload) vs prod (WASM), and `pnpm policy:test`.
+
+## Optional: run a local model with Ollama
+
+Instead of OpenAI you can run a local model for free, offline:
+
+```sh
+brew install ollama        # or download from https://ollama.com
+ollama pull llama3.1
+ollama serve               # if not already running
+```
+
+Then set `MODEL_PROVIDER=ollama` (and optionally `OLLAMA_MODEL`) in `.env`.
+
+> Local only: Ollama serves on `localhost:11434`, which a deployed Vercel function cannot reach. Use Ollama for local development; deploy with a hosted provider (the default OpenAI, or point a provider at a reachable host).
 
 ## License
 

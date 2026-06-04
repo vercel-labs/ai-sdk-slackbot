@@ -3,9 +3,9 @@
 // suppression (aliasing generateText, casting the call) does NOT help — the
 // cost is the whole-tools-object inference, not one expression — so the whole
 // file opts out. `build` runs `tsc --noEmit` on the rest of the repo.
-import { ollama } from "ai-sdk-ollama";
 import { generateText, ModelMessage, stepCountIs, tool } from "ai";
 import { z } from "zod";
+import { model } from "./model";
 import { exa } from "./utils";
 import { loadToolApproval } from "./policy/load";
 import { SlackRuntimeContext } from "./policy/runtime-context";
@@ -48,7 +48,7 @@ export const generateResponse = async (
   ]);
 
   const result = await generateText({
-    model: ollama("llama3.1"),
+    model,
     system: `You are a Slack bot assistant Keep your responses concise and to the point.
     - Do not tag users.
     - Current date is: ${new Date().toISOString().split("T")[0]}
