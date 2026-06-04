@@ -49,13 +49,12 @@ export async function handleNewAssistantMessage(
 
   const { thread_ts, channel } = event;
   const updateStatus = updateStatusUtil(channel, thread_ts);
-  await updateStatus("is thinking...");
-
-  const runtimeContext = await runtimeContextFromEvent({
-    channel,
-    user: event.user,
-  });
-  const messages = await getThread(channel, thread_ts, botUserId);
+  // Independent Slack round-trips — overlap them.
+  const [, runtimeContext, messages] = await Promise.all([
+    updateStatus("is thinking..."),
+    runtimeContextFromEvent({ channel, user: event.user }),
+    getThread(channel, thread_ts, botUserId),
+  ]);
   const result = await generateResponse(messages, runtimeContext, updateStatus);
 
   await client.chat.postMessage({

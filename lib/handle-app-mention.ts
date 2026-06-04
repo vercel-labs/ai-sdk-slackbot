@@ -37,15 +37,15 @@ export async function handleNewAppMention(
   }
 
   const { thread_ts, channel } = event;
-  const updateMessage = await updateStatusUtil("is thinking...", event);
-  const runtimeContext = await runtimeContextFromEvent({
-    channel,
-    user: event.user,
-  });
+  // These three Slack round-trips are independent — overlap them.
+  const [updateMessage, runtimeContext, messages] = await Promise.all([
+    updateStatusUtil("is thinking...", event),
+    runtimeContextFromEvent({ channel, user: event.user }),
+    thread_ts
+      ? getThread(channel, thread_ts, botUserId)
+      : Promise.resolve([{ role: "user" as const, content: event.text }]),
+  ]);
 
-  const messages = thread_ts
-    ? await getThread(channel, thread_ts, botUserId)
-    : [{ role: "user" as const, content: event.text }];
   const result = await generateResponse(messages, runtimeContext, updateMessage);
   await updateMessage(result);
 }
