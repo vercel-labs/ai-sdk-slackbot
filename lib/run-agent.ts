@@ -3,15 +3,12 @@ import { z } from "zod";
 import { model } from "./model";
 import { exa } from "./utils";
 
-/** A single tool-result as the failure logic consumes it. */
-export interface AgentToolResult {
-  toolName: string;
-  output?: { type?: string; reason?: string; value?: unknown };
-}
-
 export interface AgentResult {
   text: string;
-  toolResults: AgentToolResult[];
+  /** Names of tools that ran successfully — surfaced as a footer. */
+  usedTools: string[];
+  /** User-facing lines for tool calls denied by policy or that errored. */
+  failures: string[];
 }
 
 export async function runAgent(opts: {
@@ -116,13 +113,34 @@ export async function runAgent(opts: {
     },
   });
 
-  // Failed/denied tool calls only appear in the message stream, not in the
-  // typed step.toolResults accessor — collect them here for the caller.
-  const toolResults = result.response.messages.flatMap((m) =>
-    Array.isArray(m.content)
-      ? m.content.filter((p) => p?.type === "tool-result")
-      : [],
-  );
+  // Classify every tool outcome across all steps. We walk `step.content` (the
+  // complete per-step part list) rather than `result.response.messages`, which
+  // only holds the final step's text. The shapes differ by outcome:
+  //   - success: a `tool-result` part (output.type json/text/...)
+  //   - tool error: a `tool-result` part with output.type error-text/error-json
+  //   - policy denial: a `tool-approval-response` part with approved === false
+  //     (no tool-result is produced) — carries the policy reason.
+  const usedTools = new Set<string>();
+  const failures: string[] = [];
+  for (const step of result.steps ?? []) {
+    for (const part of (step.content ?? []) as any[]) {
+      if (part?.type === "tool-result") {
+        const outputType = part.output?.type;
+        if (outputType === "error-text" || outputType === "error-json") {
+          const value = part.output.value ?? "unknown error";
+          failures.push(
+            `*${part.toolName}* failed: ${typeof value === "string" ? value : JSON.stringify(value)}`,
+          );
+        } else {
+          usedTools.add(part.toolName);
+        }
+      } else if (part?.type === "tool-approval-response" && part.approved === false) {
+        failures.push(
+          `*${part.toolCall?.toolName ?? "tool"}* was blocked by policy: ${part.reason ?? "no reason provided"}`,
+        );
+      }
+    }
+  }
 
-  return { text: result.text, toolResults };
+  return { text: result.text, usedTools: [...usedTools], failures };
 }

@@ -1,6 +1,6 @@
 import { ModelMessage } from "ai";
 import { loadToolApproval } from "./policy/load";
-import { runAgent, type AgentToolResult } from "./run-agent";
+import { runAgent } from "./run-agent";
 import { SlackRuntimeContext } from "./policy/runtime-context";
 
 // bash/readFile/writeFile run in an in-memory just-bash sandbox (offline,
@@ -40,7 +40,11 @@ export const generateResponse = async (
     getBashTools(),
   ]);
 
-  const { text, toolResults } = await runAgent({
+  // runAgent classifies the tool outcomes: `usedTools` are tools that ran
+  // successfully (surfaced as a footer), `failures` are user-facing lines for
+  // policy denials / tool errors. Surfacing denials verbatim guards against a
+  // model confabulating a "success" after a denied call.
+  const { text, usedTools, failures } = await runAgent({
     messages,
     runtimeContext,
     toolApproval,
@@ -48,23 +52,6 @@ export const generateResponse = async (
     updateStatus,
   });
 
-  // llama3.1 confabulates after tool failures (invents a successful response
-  // when the tool was denied or rejected). failureLineFor is the single source
-  // of truth for "is this a failure": it returns one line for a denied/failed
-  // result and nothing for a success, so failures.length is exactly the count
-  // of failed tool calls.
-  const failures = toolResults.flatMap(failureLineFor);
-
-  // Tools that actually ran and returned a result (failureLineFor is empty for
-  // a success). Surfaced as a footer so it's clear which tool answered — and so
-  // a tool-less (hallucinated) answer is obvious by the footer's absence.
-  const usedTools = [
-    ...new Set(
-      toolResults
-        .filter((r) => failureLineFor(r).length === 0)
-        .map((r) => r.toolName),
-    ),
-  ];
   const toolNote =
     usedTools.length > 0 ? `\n\n_🔧 used: ${usedTools.join(", ")}_` : "";
 
@@ -74,12 +61,11 @@ export const generateResponse = async (
     .replace(/\*\*/g, "*");
 
   if (failures.length > 0) {
-    // If every tool call failed, the model has nothing real to report — return
-    // only the failure(s) so a confabulated "success" never reaches the user.
-    // If some call succeeded, keep the answer and append the failures so a
-    // valid multi-part answer isn't clobbered by one denial.
-    const anySuccess = toolResults.length > failures.length;
-    if (anySuccess && answer.trim().length > 0) {
+    // If nothing ran successfully, return only the failure(s) so a confabulated
+    // "success" never reaches the user. If some tool did succeed, keep the
+    // answer and append the failures so a valid multi-part answer isn't
+    // clobbered by one denial.
+    if (usedTools.length > 0 && answer.trim().length > 0) {
       return [answer + toolNote, ...failures].join("\n\n");
     }
     return failures.join("\n");
@@ -87,17 +73,3 @@ export const generateResponse = async (
 
   return answer + toolNote;
 };
-
-function failureLineFor(part: AgentToolResult): string[] {
-  switch (part.output?.type) {
-    case "execution-denied":
-      return [`*${part.toolName}* was blocked by policy: ${part.output.reason ?? "no reason provided"}`];
-    case "error-text":
-    case "error-json": {
-      const value = part.output.value ?? "unknown error";
-      return [`*${part.toolName}* failed: ${typeof value === "string" ? value : JSON.stringify(value)}`];
-    }
-    default:
-      return [];
-  }
-}
