@@ -1,8 +1,3 @@
-// @ts-nocheck — ai@7-beta's generic inference over tool({ inputSchema, execute })
-// plus generateText's options type OOMs tsc. This module isolates that single
-// call so the rest of generate-response.ts stays type-checked. The exported
-// signature below is the typed boundary callers rely on. Remove the directive
-// when ai@7 stabilizes its type inference.
 import { generateText, stepCountIs, tool, type ModelMessage } from "ai";
 import { z } from "zod";
 import { model } from "./model";
@@ -22,7 +17,9 @@ export interface AgentResult {
 export async function runAgent(opts: {
   messages: ModelMessage[];
   runtimeContext: unknown;
-  toolApproval: unknown;
+  // The OPA-backed approval fn is loaded dynamically (lib/policy/load.ts), so
+  // it's untyped at this boundary; generateText expects ToolApprovalConfiguration.
+  toolApproval: any;
   bashTools: Record<string, unknown>;
   updateStatus?: (status: string) => void;
 }): Promise<AgentResult> {
