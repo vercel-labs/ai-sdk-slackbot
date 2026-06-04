@@ -186,6 +186,8 @@ ollama serve               # if not already running
 
 Then set `MODEL_PROVIDER=ollama` (and optionally `OLLAMA_MODEL`) in `.env`.
 
+> Small models like `llama3.1:8b` sometimes call tools when they shouldn't (e.g. answering "hi" with a weather report) or invent sources. `qwen2.5` follows tool instructions more reliably — `ollama pull qwen2.5` and set `OLLAMA_MODEL=qwen2.5`. The default hosted model (`gpt-4o`) doesn't have this problem.
+
 > Local only: Ollama serves on `localhost:11434`, which a deployed Vercel function cannot reach. Use Ollama for local development; deploy with a hosted provider (the default OpenAI, or point a provider at a reachable host).
 
 ## License
