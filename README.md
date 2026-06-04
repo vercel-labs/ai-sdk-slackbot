@@ -188,7 +188,20 @@ ollama pull llama3.1
 ollama serve               # if not already running
 ```
 
-Then set `MODEL_PROVIDER=ollama` (and optionally `OLLAMA_MODEL`) in `.env`.
+Then set `MODEL_PROVIDER=ollama` in `.env`. You don't need an `OPENAI_API_KEY` on this path — a full `.env` for local Ollama looks like:
+
+```
+# Slack Credentials
+SLACK_BOT_TOKEN=xoxb-your-bot-token
+SLACK_SIGNING_SECRET=your-signing-secret
+
+# Use a local Ollama model instead of OpenAI (no OPENAI_API_KEY needed)
+MODEL_PROVIDER=ollama
+OLLAMA_MODEL=llama3.1        # optional; defaults to llama3.1
+
+# Exa API Key (only needed if you want web search to run)
+EXA_API_KEY=your-exa-api-key
+```
 
 > Small models like `llama3.1:8b` sometimes call tools when they shouldn't (e.g. answering "hi" with a weather report) or invent sources. `qwen2.5` follows tool instructions more reliably — `ollama pull qwen2.5` and set `OLLAMA_MODEL=qwen2.5`. The default hosted model (`gpt-4o`) doesn't have this problem.
 
