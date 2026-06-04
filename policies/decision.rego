@@ -9,7 +9,7 @@
 #     "tool":    { "name": <string> },
 #     "args":    <tool input>,
 #     "messages":[...],
-#     "runtimeContext": { "channelId", "channelName", "userId" },
+#     "runtimeContext": { "channelId", "userId" },
 #     # Only for the bash tool, added by toInput in lib/policy/load.ts:
 #     "bash":    { "program": <string>, "argv": [<string>], "suspicious": <bool> }
 #   }
@@ -33,11 +33,11 @@ allowed_domain := "vercel.com"
 # Display version of the city list, used in deny reasons.
 allowed_cities_display := "San Francisco, Austin, New York, London, Berlin"
 
-# Slack channel name where `throwDice` is permitted. Defaults to "general",
-# which every workspace has, so the example works out of the box. Matched by
-# name (not ID) since the #general ID differs per workspace. Change this to
-# gate dice to a different channel.
-allowed_dice_channel := "general"
+# Slack channel ID where `throwDice` is permitted. Matched on the immutable
+# channel ID (not the name) so it needs no extra Slack scope or lookup. Replace
+# this with your channel's ID: right-click the channel in Slack → "View channel
+# details" → the ID is at the bottom (starts with C for public, G for private).
+allowed_dice_channel := "C0B6YBUHMME"
 
 # Bash commands the bot may run. Add or remove a command here to change what's
 # allowed — everything not listed (rm, curl, git, mkdir, ...) is denied.
@@ -53,11 +53,11 @@ allowed_bash_commands := {
 
 # ---------------------------------------------------------------------------
 # Top-level entrypoint. Returns one decision object.
-# Unmatched tools fall through to "not-applicable" so the SDK can apply its
-# own default (allow-all unless wrapped by `wrapMcpTools`).
+# Default-deny: any tool without an explicit rule below is denied, so adding a
+# new tool to the bot requires consciously allowing it here.
 # ---------------------------------------------------------------------------
 
-default decision := {"decision": "not-applicable"}
+default decision := {"decision": "deny", "reason": "This tool is not permitted by policy."}
 
 decision := get_weather_decision if input.tool.name == "getWeather"
 
@@ -106,16 +106,16 @@ search_web_decision := {"decision": "allow"} if {
 }
 
 # ---------------------------------------------------------------------------
-# Rule 3 — throwDice: only permitted in the configured allowed channel.
-# `runtimeContext.channelName` is resolved from the channel ID by the Slack
-# handler per request (see lib/policy/runtime-context.ts).
+# Rule 3 — throwDice: only permitted in the configured channel, matched on the
+# immutable `runtimeContext.channelId` set by the Slack handler per request
+# (see lib/policy/runtime-context.ts).
 # ---------------------------------------------------------------------------
 
 throw_dice_decision := {"decision": "allow"} if {
-	input.runtimeContext.channelName == allowed_dice_channel
+	input.runtimeContext.channelId == allowed_dice_channel
 } else := {
 	"decision": "deny",
-	"reason": sprintf("Sorry, throwDice can only be used in #%s.", [allowed_dice_channel]),
+	"reason": "Sorry, throwDice can only be used in the designated channel.",
 }
 
 # ---------------------------------------------------------------------------

@@ -77,7 +77,7 @@ test_dice_allowed_channel if {
 	call.decision.decision == "allow" with input as {
 		"tool": {"name": "throwDice"},
 		"args": {},
-		"runtimeContext": {"channelName": "general"},
+		"runtimeContext": {"channelId": "C0B6YBUHMME"},
 	}
 }
 
@@ -85,10 +85,10 @@ test_dice_denied_channel if {
 	d := call.decision with input as {
 		"tool": {"name": "throwDice"},
 		"args": {},
-		"runtimeContext": {"channelName": "random"},
+		"runtimeContext": {"channelId": "C0OTHER"},
 	}
 	d.decision == "deny"
-	contains(d.reason, "general")
+	contains(d.reason, "designated channel")
 }
 
 # ---------- bash ----------
@@ -229,11 +229,13 @@ test_write_file_denied if {
 	contains(d.reason, "read-only")
 }
 
-# ---------- default fallthrough ----------
+# ---------- default-deny ----------
 
-test_unknown_tool_not_applicable if {
-	call.decision.decision == "not-applicable" with input as {
+test_unknown_tool_denied if {
+	d := call.decision with input as {
 		"tool": {"name": "somethingElse"},
 		"args": {},
 	}
+	d.decision == "deny"
+	contains(d.reason, "not permitted")
 }

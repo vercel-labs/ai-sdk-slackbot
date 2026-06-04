@@ -41,14 +41,11 @@ export async function handleNewAppMention(
   // below (e.g. getThread hitting a missing channels:history scope) instead of
   // leaving an orphaned "is thinking..." message.
   const updateMessage = await updateStatusUtil("is thinking...", event);
+  const runtimeContext = runtimeContextFromEvent({ channel, user: event.user });
   try {
-    // Independent Slack reads — overlap them.
-    const [runtimeContext, messages] = await Promise.all([
-      runtimeContextFromEvent({ channel, user: event.user }),
-      thread_ts
-        ? getThread(channel, thread_ts, botUserId)
-        : Promise.resolve([{ role: "user" as const, content: event.text }]),
-    ]);
+    const messages = thread_ts
+      ? await getThread(channel, thread_ts, botUserId)
+      : [{ role: "user" as const, content: event.text }];
     const result = await generateResponse(messages, runtimeContext, updateMessage);
     await updateMessage(result);
   } catch (error) {

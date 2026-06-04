@@ -114,33 +114,3 @@ export const getBotId = async () => {
   }
   return botUserId;
 };
-
-// Slack events carry the channel ID, not its name, but the policy gates by
-// name (e.g. "general"). Resolve id -> name via conversations.info, cached
-// since channel names rarely change. Requires the `channels:read` scope (and
-// `groups:read` for private channels). Returns undefined if it can't resolve.
-// Caches successful resolutions (including the legitimate `undefined` for DMs,
-// which have no name) but never caches failures, so a transient error or a
-// not-yet-granted scope retries on the next request instead of sticking for the
-// process lifetime.
-const channelNameCache = new Map<string, string | undefined>();
-
-export async function resolveChannelName(
-  channelId: string,
-): Promise<string | undefined> {
-  if (channelNameCache.has(channelId)) {
-    return channelNameCache.get(channelId);
-  }
-  try {
-    const res = await client.conversations.info({ channel: channelId });
-    const name = res.channel?.name;
-    channelNameCache.set(channelId, name);
-    return name;
-  } catch (error) {
-    // Most often a missing `channels:read` (or `groups:read`) scope. Log it so a
-    // channel-gated policy that denies in the *correct* channel is diagnosable
-    // rather than silently failing closed.
-    console.warn(`resolveChannelName: could not resolve ${channelId}`, error);
-    return undefined;
-  }
-}

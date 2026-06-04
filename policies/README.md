@@ -19,18 +19,16 @@ the policy sees looks like this:
   ],
   "runtimeContext": {                         // set by the bot per request
     "channelId":   "C0B6YBUHMME",             // raw Slack channel ID
-    "channelName": "general",                  // resolved name (no '#'); undefined in DMs
     "userId":      "U0123ABCD"
   }
 }
 ```
 
-The `throwDice` rule gates on `channelName` and defaults to `"general"` (every
-workspace has it), so the example works out of the box. Edit `allowed_dice_channel`
-in `decision.rego` to allow a different channel — use the channel **name** (the
-bare name, no `#`), not the ID. Note: resolving the name requires the bot's
-`channels:read` scope (and `groups:read` for private channels); without it the
-bot can't see the channel name and `throwDice` is denied everywhere.
+The `throwDice` rule gates on the immutable `channelId`. Set `allowed_dice_channel`
+in `decision.rego` to your channel's ID — right-click the channel in Slack →
+"View channel details" → the ID is at the bottom (starts with `C` for public,
+`G` for private). Matching by ID (not name) needs no extra Slack scope and no
+per-request lookup.
 
 Return one of:
 
