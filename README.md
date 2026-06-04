@@ -53,11 +53,14 @@ pnpm install
       - `app_mentions:read`
       - `assistant:write`
       - `chat:write`
+      - `channels:history` (read thread history when continuing a conversation in a public channel; add `groups:history` for private channels and `mpim:history` for group DMs)
       - `channels:read` (lets the dice policy resolve the channel name; add `groups:read` for private channels)
       - `im:history`
       - `im:read`
       - `im:write`
    - Install the app to your workspace and note down the "Bot User OAuth Token" for the environment variable `SLACK_BOT_TOKEN`
+
+   > Scopes are easy to miss: `channels:history` is required to **continue a conversation in a thread** (mention in a public channel), and `channels:read` for the **dice channel policy**. If you add scopes after installing, you must **reinstall the app** to your workspace for them to take effect.
 
 - Go to "Event Subscriptions"
    - Enable Events
