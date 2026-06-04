@@ -37,15 +37,24 @@ export async function handleNewAppMention(
   }
 
   const { thread_ts, channel } = event;
-  // These three Slack round-trips are independent — overlap them.
-  const [updateMessage, runtimeContext, messages] = await Promise.all([
-    updateStatusUtil("is thinking...", event),
-    runtimeContextFromEvent({ channel, user: event.user }),
-    thread_ts
-      ? getThread(channel, thread_ts, botUserId)
-      : Promise.resolve([{ role: "user" as const, content: event.text }]),
-  ]);
-
-  const result = await generateResponse(messages, runtimeContext, updateMessage);
-  await updateMessage(result);
+  // Post the status first so we hold the updater and can surface any failure
+  // below (e.g. getThread hitting a missing channels:history scope) instead of
+  // leaving an orphaned "is thinking..." message.
+  const updateMessage = await updateStatusUtil("is thinking...", event);
+  try {
+    // Independent Slack reads — overlap them.
+    const [runtimeContext, messages] = await Promise.all([
+      runtimeContextFromEvent({ channel, user: event.user }),
+      thread_ts
+        ? getThread(channel, thread_ts, botUserId)
+        : Promise.resolve([{ role: "user" as const, content: event.text }]),
+    ]);
+    const result = await generateResponse(messages, runtimeContext, updateMessage);
+    await updateMessage(result);
+  } catch (error) {
+    console.error("Error handling app mention", error);
+    await updateMessage(
+      "⚠️ Something went wrong handling that — check the bot logs (a missing Slack scope is the usual cause).",
+    );
+  }
 }
