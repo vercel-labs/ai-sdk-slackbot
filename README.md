@@ -190,6 +190,15 @@ answer only from tool results, but that is best-effort, not enforced — a hard
 out of scope here. The `🔧` footer on each reply shows which tool actually ran, so
 a tool-less or unscoped answer is at least visible.
 
+This makes policy gating a strong fit for **deterministic, inspectable tool
+calls** — running a shell/`git` command, writing a file, a Slack/MCP action —
+where "is this action allowed?" is a clear decision on concrete inputs, and the
+decision fully bounds the effect. It's a weaker fit for **content-oriented tools**
+(like web search) whose value is the nuanced text the model synthesizes from the
+result: gating the call constrains what gets fetched, not what the model
+ultimately says. Reach for this pattern where the tool *is* the action; pair it
+with other controls where the risk is in generated content.
+
 ## Optional: run a local model with Ollama
 
 Instead of OpenAI you can run a local model for free, offline:

@@ -101,3 +101,9 @@ prompt asks the model to answer only from tool results; that's best-effort, not
 enforced. A hard "only answer from allowed sources" guarantee needs output-side
 validation (verifying the answer is supported by the tool results), which lives
 above the policy layer.
+
+In short: this pattern is a strong fit for **deterministic, inspectable tool
+calls** — `git`/`bash`, file writes, Slack/MCP actions — where allowing the call
+fully bounds the effect. It's a weaker fit for **content-oriented tools** (web
+search and similar) where the risk is in the nuanced text the model produces, not
+in the call itself.
