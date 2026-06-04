@@ -55,6 +55,19 @@ export const generateResponse = async (
   // of failed tool calls.
   const failures = toolResults.flatMap(failureLineFor);
 
+  // Tools that actually ran and returned a result (failureLineFor is empty for
+  // a success). Surfaced as a footer so it's clear which tool answered — and so
+  // a tool-less (hallucinated) answer is obvious by the footer's absence.
+  const usedTools = [
+    ...new Set(
+      toolResults
+        .filter((r) => failureLineFor(r).length === 0)
+        .map((r) => r.toolName),
+    ),
+  ];
+  const toolNote =
+    usedTools.length > 0 ? `\n\n_🔧 used: ${usedTools.join(", ")}_` : "";
+
   // Convert markdown to Slack mrkdwn format.
   const answer = text
     .replace(/\[(.*?)\]\((.*?)\)/g, "<$2|$1>")
@@ -67,12 +80,12 @@ export const generateResponse = async (
     // valid multi-part answer isn't clobbered by one denial.
     const anySuccess = toolResults.length > failures.length;
     if (anySuccess && answer.trim().length > 0) {
-      return [answer, ...failures].join("\n\n");
+      return [answer + toolNote, ...failures].join("\n\n");
     }
     return failures.join("\n");
   }
 
-  return answer;
+  return answer + toolNote;
 };
 
 function failureLineFor(part: AgentToolResult): string[] {
