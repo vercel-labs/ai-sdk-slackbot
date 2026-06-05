@@ -4,6 +4,7 @@ import type {
 } from "@slack/web-api";
 import { client, getThread, updateStatusUtil } from "./slack-utils";
 import { generateResponse } from "./generate-response";
+import { runtimeContextFromEvent } from "./policy/runtime-context";
 
 export async function assistantThreadMessage(
   event: AssistantThreadStartedEvent,
@@ -48,26 +49,36 @@ export async function handleNewAssistantMessage(
 
   const { thread_ts, channel } = event;
   const updateStatus = updateStatusUtil(channel, thread_ts);
+  const runtimeContext = runtimeContextFromEvent({ channel, user: event.user });
   await updateStatus("is thinking...");
+  try {
+    const messages = await getThread(channel, thread_ts, botUserId);
+    const result = await generateResponse(messages, runtimeContext, updateStatus);
 
-  const messages = await getThread(channel, thread_ts, botUserId);
-  const result = await generateResponse(messages, updateStatus);
-
-  await client.chat.postMessage({
-    channel: channel,
-    thread_ts: thread_ts,
-    text: result,
-    unfurl_links: false,
-    blocks: [
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: result,
+    await client.chat.postMessage({
+      channel: channel,
+      thread_ts: thread_ts,
+      text: result,
+      unfurl_links: false,
+      blocks: [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: result,
+          },
         },
-      },
-    ],
-  });
-
-  await updateStatus("");
+      ],
+    });
+  } catch (error) {
+    console.error("Error handling assistant message", error);
+    await client.chat.postMessage({
+      channel,
+      thread_ts,
+      text: "⚠️ Something went wrong handling that — check the bot logs (a missing Slack scope is the usual cause).",
+    });
+  } finally {
+    // Always clear the "is thinking..." status, even on failure.
+    await updateStatus("");
+  }
 }
