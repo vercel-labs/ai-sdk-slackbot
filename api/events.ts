@@ -5,7 +5,7 @@ import {
 } from "../lib/handle-messages";
 import { waitUntil } from "@vercel/functions";
 import { handleNewAppMention } from "../lib/handle-app-mention";
-import { verifyRequest, getBotId } from "../lib/slack-utils";
+import { getBotId, isValidSlackRequest } from "../lib/slack-utils";
 
 export async function POST(request: Request) {
   const rawBody = await request.text();
@@ -17,7 +17,10 @@ export async function POST(request: Request) {
     return new Response(payload.challenge, { status: 200 });
   }
 
-  await verifyRequest({ requestType, request, rawBody });
+  const validRequest = await isValidSlackRequest({ request, rawBody });
+  if (!validRequest || requestType !== "event_callback") {
+    return new Response("Invalid request", { status: 400 });
+  }
 
   try {
     const botUserId = await getBotId();

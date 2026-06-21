@@ -44,21 +44,6 @@ export async function isValidSlackRequest({
   )
 }
 
-export const verifyRequest = async ({
-  requestType,
-  request,
-  rawBody,
-}: {
-  requestType: string;
-  request: Request;
-  rawBody: string;
-}) => {
-  const validRequest = await isValidSlackRequest({ request, rawBody });
-  if (!validRequest || requestType !== "event_callback") {
-    return new Response("Invalid request", { status: 400 });
-  }
-};
-
 export const updateStatusUtil = (channel: string, thread_ts: string) => {
   return async (status: string) => {
     await client.assistant.threads.setStatus({
