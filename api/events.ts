@@ -19,6 +19,12 @@ export async function POST(request: Request) {
 
   await verifyRequest({ requestType, request, rawBody });
 
+  // Slack retries an event it did not get a 2xx for within 3 seconds; the first delivery is still being handled
+  // (waitUntil), so handling the retry too would answer the same message twice.
+  if (request.headers.get("x-slack-retry-num")) {
+    return new Response("Already handling this event", { status: 200 });
+  }
+
   try {
     const botUserId = await getBotId();
 
